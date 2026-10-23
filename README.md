@@ -20,6 +20,7 @@ npm run db:migrate # schema + row-level security
 npm run db:import  # load data/export (artifact db dump) — safe to re-run
 npm run test:db    # RLS, ownership, append-only log, order numbers, importer idempotency
 npm run test:orders # order API end to end, as each role (after npm run build)
+npm run test:e2e   # Playwright at 390 px: a job's life as sale → store → CEO → store (after npm run build)
 ```
 
 ### Order API (M3)
@@ -37,6 +38,10 @@ All writes need `rev` (the version you read) and return the new `rev`; a stale `
 | POST | `/api/orders/:id/move` `{ to }` | per `moveCheck` in `logic.js` |
 | POST | `/api/orders/:id/checkout` / `checkin` | store, admin |
 | POST | `/api/orders/:id/fix-status` `{ to, reason }` | admin |
+| POST | `/api/orders/:id/copy` | sale, admin (any job, legacy too → new v2 quote) |
+| POST | `/api/orders/:id/repairs` | store, admin (Shipped/Returned; damaged lines → tickets) |
+| GET / PATCH | `/api/repairs`, `/api/repairs/:id` `{ status, note }` | read: any staff · change: store, admin |
+| GET | `/api/products`, `/api/customers`, `/api/crew` | any staff (no tax IDs, no crew costs) |
 
 ### Try the screens locally
 ```bash
