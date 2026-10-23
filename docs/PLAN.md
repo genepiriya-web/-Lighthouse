@@ -1,0 +1,277 @@
+# Lighthouse Dispatch — plan to move daily work into v2
+
+Status: **draft for Gene's approval** · 23 Oct 2026 · No Step 2 code is written until Gene approves this plan.
+
+**Recommendation in one line:** build a standalone app on Next.js + Supabase Postgres (Singapore region). All writes go through server code that runs the same `logic.js`, and the database refuses direct writes. Fix flaws 1–4 before anyone keys a real job into v2. Move to v2 one job at a time: new jobs start in v2, old jobs finish in the old system.
+
+---
+
+## 0. Step 1 results
+
+### Starting point
+The brief assumed a repo with `CLAUDE.md`, tests and a `data/` export. None of it was on this Mac. The design review mentions `lighthouse-dispatch-handoff.zip`, but it was never downloaded. So this repo was rebuilt from the live artifact (version 1792642455-d04d):
+
+| File | What it is |
+| --- | --- |
+| `src/logic.js` | The `LOGIC-START…LOGIC-END` block from the page, unchanged, plus a `module.exports` footer |
+| `src/app.html` | The page with a slot where the logic goes |
+| `scripts/build.js` | Rebuilds `dist/app.html`. **The output is byte-identical to the published artifact** (checked with `cmp` and in `test:ui`) |
+| `tests/logic.test.js` | 20 unit tests written from the code and the design review's locked case |
+| `tests/parity.test.js` | Old-system parity test. It runs only when `data/parity.json` exists |
+| `tests/ui.test.js` | 5 jsdom smoke tests against the built page |
+
+The handoff zip had "logic 9 sets, parity, UI 3 sets". These tests are new. If the zip turns up, its tests should be merged in, not discarded.
+
+### Test run: `npm run build && npm test && npm run test:ui`
+| Suite | Result |
+| --- | --- |
+| build | OK. `dist/app.html` equals the published page byte for byte |
+| unit (`logic.test.js`) | **20 / 20 pass** |
+| parity (`parity.test.js`) | **Skipped.** No `data/parity.json`. The 209/209 match was measured in the artifact session and can't be re-run here yet |
+| UI (`ui.test.js`) | **5 / 5 pass**: offline banner, admin tabs, sale vs store buttons, all 299 English strings have Thai, build matches published |
+
+**Decision needed (D0):** may I export a parity snapshot (job header, lines, old-system totals) from the artifact db into git-ignored `data/parity.json`? It holds customer names and amounts. It never includes crew national IDs.
+
+---
+
+## 1. Architecture as it is today
+
+```
+admin.lighthouse.co.th  ──read only, Gene's browser login, by hand──▶  Claude sync  ──overwrites──▶  artifact db
+(source of truth, team keys work here)                                                              │
+                                                                       Lighthouse Dispatch page ◀────┘
+                                                                       (one HTML file, all logic in the browser)
+```
+
+- **One HTML page** (~138 KB) holds UI, Thai/English text (299 keys each), and logic. No server code of its own.
+- **Data:** the artifact's document db. Collections: `orders`, `lines` (one doc per order holding all items), `repairs`, `locks`, `counters`, `catalog`/`kits`/`customers`/`crew` (copied master data stored as large row chunks), `catalogEdits`/`customerEdits` (v2 edits layered on top), `team`, `meta`, `secure/crewIds`.
+- **Permissions the db actually enforces:** two levels only. Everyone with access can read and write `orders`, `lines`, `repairs`, `locks`, `counters` and the edit layers. Admin (page owner or Editor) writes master data, `team` and `meta`. Only admin reads `secure`. The roles sale, store, accounting and crew exist only in the page's JavaScript.
+- **Logic** (`src/logic.js`): line pricing, order totals with VAT, Weekly/DPW days, package expansion, stock usage and clash, the status machine with role table and guards, and the Cockpit checks (`diagnose`).
+- **Writes:** saving items writes `lines/{id}` and then patches `orders/{id}` with totals, usage, rev and log in a second write. A status move is one client-side patch. The client checks `moveCheck` first; the db does not check anything.
+- **Concurrency:** a 90-second lease on `locks/{orderId}`, renewed every 45 s. It is advisory: the db does not stop a write from someone without the lease.
+- **Order numbers:** a client lease on `counters/orders`, then read, add 1 and write. 6 retries.
+- **Activity log:** an array on the order, **trimmed to the last 80 entries**.
+
+### Things in the code Gene should know about (not changed; listed per rule 3)
+| # | Behaviour | Why it matters | Proposal |
+| --- | --- | --- | --- |
+| L1 | Activity log keeps only the last 80 entries per job | Fails "log every change" for long jobs | New app: a separate append-only `activity` table |
+| L2 | Admin "Correct status" skips every guard and logs as a normal status move | You can't tell a correction from a real move in the log | Log it as `status_fix` with a required reason |
+| L3 | Revealing a crew ID on screen is not logged. Only the CSV download is logged | PDPA: views must be logged per the acceptance criteria | Log every reveal |
+| L4 | The customer's default discount is looked up by **customer name**, not ID | Two customers with the same name get the wrong discount | Use customer ID. Needs a check of how often names repeat |
+| L5 | Cockpit skips "fuel hour" items by matching descriptions that start with "Hour " | One renamed item breaks the overbook check | Add a flag on the product |
+| L6 | Weekly rule: each full week charges `dpw` days, and leftover days are capped at `dpw` | Unconfirmed (flaw 9) | Gene / accounting confirm with 2 real weekly jobs |
+| L7 | Insurance is added **before** VAT, so it carries VAT | Unconfirmed (flaw 9) | Accounting confirms |
+| L8 | Import auto-fills "adjust" when v2 and old totals differ by ≤ max(฿1,000, 2%) | Small real differences get hidden as adjustments | Keep for legacy import, but list every auto-adjust once for review |
+
+---
+
+## 2. Design flaws: fix, pros and cons, effort
+
+Effort means working days for one developer using Claude Code, including tests. S ≤ 2 days, M 3–5 days, L 6–10 days. These are estimates, not quotes.
+
+### Flaw 1 — Two sources of truth (sync overwrites v2 edits) · High
+**Fix:** per-job ownership. Each order gets `owner = 'legacy' | 'v2'`.
+- v2 jobs (6909001 and up) are never touched by sync.
+- Legacy jobs are read-only in v2 until cutover, enforced by the server and the DB, not just the UI.
+- Stock clash checks count both legacy and v2 jobs.
+- Cutover per job: none. Legacy jobs finish their life in the old system.
+- Retire the old system when it has no open jobs left. At ~200 open jobs that is roughly one rental cycle (to be measured).
+
+| Pros | Cons |
+| --- | --- |
+| Simple. Never writes to the old system | Staff use two systems during the transition |
+| No merge conflicts possible | Stock is only correct if legacy sync is fresh. A stale sync means a missed clash |
+| Can start with one salesperson | The old system doesn't know about v2 bookings, so it can double-book v2 stock |
+
+**The last con is the real risk.** Mitigations, choose one:
+- (a) Once v2 starts, all new bookings go into v2.
+- (b) Sync at least every 2 hours during the transition, and add a Cockpit check for cross-system clashes.
+
+Effort: **M**.
+
+*Alternatives:* (i) Big-bang cutover on one date. Simpler code, but higher risk and every open job gets migrated. (ii) Two-way sync. Rejected: it needs writes to the old system, which rule 1 forbids.
+
+### Flaw 2 — Roles enforced only in the browser · High
+**Fix:** clients can't write tables directly.
+- Postgres row-level security (RLS) gives each signed-in role read access. Insert, update and delete are denied to the client role.
+- Every change goes through a server endpoint (Next.js route handler / server action). The endpoint checks the user's session and role from the `staff` table, then runs `logic.js` (`moveCheck`, `canEditLines`, `orderTotals`, `usageOf`).
+- It writes in one transaction with the activity row.
+
+| Pros | Cons |
+| --- | --- |
+| Same `logic.js` on client and server, so the parity test covers both | A server is now required (hosting cost, someone owns it) |
+| One place to audit. RLS is a second wall if the server has a bug | Two layers (server checks + RLS) to keep consistent |
+| Easy to test: call the API as a `store` user and expect 403 | |
+
+*Alternative:* all rules in Postgres functions (SQL or PL/pgSQL), with no Node server for writes. Pros: one layer. Cons: pricing gets rewritten in SQL, which breaks "logic.js is the spec" and needs a second parity proof. **Not recommended.**
+
+Effort: **L** (API for orders, lines, moves, check-out/in, master data, plus RLS and tests).
+
+### Flaw 3 — No backups of v2 data · High
+**Fix, in two layers:**
+1. Supabase's own daily backups. Plan-dependent: check the current plan's retention and whether point-in-time recovery is worth the add-on.
+2. Our own nightly `pg_dump` to storage we control (e.g. a scheduled GitHub Action writing to a Google Drive or S3 bucket), kept 30 days.
+
+Restore test: restore last night's dump into a scratch project, then run the importer checks and the parity test against it. Do this once before go-live, then quarterly.
+
+| Pros | Cons |
+| --- | --- |
+| Survives losing the Supabase account or a bad migration | The dump holds PDPA data: the storage must be encrypted and access-limited |
+| Restore is proven, not assumed | Someone must watch for failed backup alerts |
+
+*Interim, for the artifact today:* an admin "Export JSON" button. Downloads only. Effort S, but it puts customer data on a laptop.
+
+Effort: **S–M**.
+
+### Flaw 4 — Sync needs Gene's Mac and login, run by hand · High
+**Fix:** this can't be fixed by code alone.
+- **Open question for Gene:** who owns the old system's code and database (in-house, a vendor, a freelancer)? Can they give a read-only API key, a read-only DB user, or a nightly export?
+- Until then, keep the human-in-the-loop browser sync. Write it as a documented importer (`scripts/import-legacy`) that reads the JSON Claude saves and loads it idempotently. Then only the fetching step stays manual.
+
+| Option | Pros | Cons |
+| --- | --- | --- |
+| Read-only API key from the owner | Automatic, scheduled, no personal login | Depends on the owner. May cost money |
+| Read-only DB replica or nightly dump | Most complete data | Same, plus schema mapping work |
+| Keep browser sync (current) | Works today, no one else needed | One person, one Mac. Stale data means missed clashes (see flaw 1) |
+
+Effort: importer **M**. Automation unknown until the owner answers.
+
+### Flaw 5 — Staff skip Shipped/Returned · Medium
+Fact: on 22 Oct, 11 jobs went Approve → Draft INV directly in the old system. v2 requires check-out before Shipped and check-in before Returned.
+
+| Option | Pros | Cons |
+| --- | --- | --- |
+| A. Make check-out/in optional (store can "Ship all as booked" in one tap; log who did it) | Matches how the team works now. Fast | Stock is only as accurate as the bookings. Losses and damage are not recorded |
+| B. Keep them required, make them fast: barcode/QR scan on a phone | Real stock, loss and damage tracking. Repairs flow works | Needs labels on ~3,275 products (or only the stocked ones), phones, and training. Slower at first |
+| C. A now, B later per department (start with high-value lighting) | Low friction now, a path to accuracy | Two modes to support for a while |
+
+**Recommendation: C**, decided with Gene and Store. Effort: A **S**, B **L**.
+
+### Flaw 6 — Meaning of `stock` not verified (`stock` vs `onHand`) · Medium
+**Fix:** Store counts 10–20 items, mixing high-value, packaged and frequently rented ones. Compare the counts with both old-system fields and write down which field means "units we own". No code change until then.
+- Pros: cheap, ends the guesswork.
+- Cons: needs Store's time, and an item out on rent must be counted as out.
+
+Effort: **S** (half a day of Store time plus 1 hour to record).
+
+### Flaw 7 — Totals and usage stored on the order (denormalized) · Medium
+Today two writes (lines, then order) can leave totals out of step with the items.
+
+**Fix:** in Postgres, lines are rows in `order_lines`. The server recomputes totals and usage with `logic.js` and writes lines, totals and the activity row in **one transaction**. Keep stored totals for fast lists, but treat them as a cache. A nightly check recomputes and flags any difference.
+
+| Pros | Cons |
+| --- | --- |
+| Lists stay fast | A cache to keep honest (the nightly check covers it) |
+| No half-saved jobs | |
+
+*Alternative:* compute totals on every read with no stored totals. Simplest correctness, but slower lists and the Cockpit must load every line.
+
+Effort: part of flaw 2.
+
+### Flaw 8 — Quotes that leave the sync window stay as stale "Quote" · Medium
+**Fix:** during sync, re-check the status of every legacy Quote no longer in the open list. This is already done for other statuses. Also add a Cockpit rule: a Quote whose ship date is more than 14 days past gets flagged "expired?".
+- Pros: Cockpit quote value becomes trustworthy.
+- Cons: more reads per sync. The 14-day cut-off is an assumption for Gene to confirm.
+
+Effort: **S**.
+
+### Flaw 9 — Unconfirmed rules · Medium
+Rules waiting on answers: VAT on insurance (L7), the Weekly/DPW rule (L6), and who may approve (sale or manager). No code change until answered. When answered, add a unit test that pins the confirmed numbers.
+
+Effort: **S** after the answers.
+
+### Flaw 10 — Crew-ID CSV leaves v2's protection · Medium
+| Option | Pros | Cons |
+| --- | --- | --- |
+| Password-protected PDF (password sent separately) | Works offline for the client | Passwords get reused and forwarded. PDF encryption strength depends on the library |
+| Expiring link (signed URL, e.g. 72 h, view-only page, each open logged) | Every view logged. Can be revoked | Client needs internet. Slightly more build |
+| Keep CSV, add a watermark and log (today) | No work | The file is out of our control forever |
+
+**Recommendation:** expiring link, IDs shown masked except to the named recipient. Open question: what does the client production actually need (full ID, or last 4 digits)? If masked is enough, the risk mostly goes away.
+
+Effort: **M**.
+
+### Flaw 11 — Order counter uses a client-side lease · Low
+**Fix:** a Postgres sequence per Buddhist year (or one sequence with a yearly reset job). The number is assigned inside the create-order transaction.
+- Pros: no collisions or retries.
+- Cons: sequences can leave gaps on rolled-back creates. Open question: does accounting need gap-free numbers? Tax invoice numbers will need to be gap-free, but order numbers may not.
+
+Effort: **S**.
+
+### Flaw 12 — Hard list limits (1,000 open, 500 closed per status) · Low
+**Fix:** server-side pagination and search in Postgres, with indexes on `status`, `no`, `ship`, `customer_id`. Closed jobs stay searchable for years.
+- Pros: no ceiling.
+- Cons: none worth noting. It comes free with the move.
+
+Effort: part of the build.
+
+### Also needed (from the acceptance criteria, not on the flaw list)
+- **Concurrent editing:** optimistic version check (`UPDATE … WHERE id=$1 AND rev=$2`, else 409 "someone saved first, reload"). Keep a soft "X is editing" banner for comfort. Test: two saves with the same `rev`, the second gets 409. Effort **S**.
+- **Activity log:** an append-only `activity` table (who, when, what, before/after JSON) written in the same transaction as every change. Fixes L1–L3. Effort **S**.
+
+---
+
+## 3. Stack
+
+### Recommended
+| Layer | Choice | Why |
+| --- | --- | --- |
+| App | **Next.js (TypeScript), App Router** | One codebase for UI and server endpoints. `logic.js` runs in both unchanged |
+| Database | **Supabase Postgres, Singapore region** | Real SQL, transactions, sequences, RLS, built-in daily backups, managed |
+| Auth | **Supabase Auth**: Google sign-in (built in) to start, LINE as a spike | See the LINE note below |
+| Hosting | **Vercel** (or Supabase + any Node host) | Push-to-deploy, preview links for review |
+| Tests | Node test runner (existing), Playwright for phone-width UI | Reuses today's tests |
+
+**LINE Login: verified, with one unknown.**
+- Supabase does **not** list LINE as a built-in provider ([social login](https://supabase.com/docs/guides/auth/social-login)).
+- It does support **custom OAuth/OIDC providers**: up to 3 per project, signed in as `custom:<name>`, with ID tokens checked against the provider's keys ([custom providers](https://supabase.com/docs/guides/auth/custom-oauth-providers), [blog](https://supabase.com/blog/custom-oauth-oidc-providers)).
+- LINE Login is OIDC-based, but I have **not verified** that its ID tokens and discovery document pass Supabase's checks.
+- Plan: a 1-day spike before committing. If it fails, start with Google or email one-time codes and add LINE through Auth.js later.
+
+### Alternatives compared
+| Option | Pros | Cons | Verdict |
+| --- | --- | --- | --- |
+| **Next.js + Supabase** (recommended) | Postgres + RLS + backups managed. One language. Fast to build | Two vendors (Vercel + Supabase). Monthly cost (check current plans) | ✔ |
+| SvelteKit or Remix + Supabase | Same backend, lighter front end | Smaller hiring pool in Thailand (assumption, not checked). No real gain for this app | Possible |
+| Firebase (Firestore + rules + Functions) | Closest to today's document db, so the port is easier | No SQL joins or sequences. Rules language is weak for pricing. Reporting and invoices are harder later | ✘ |
+| Laravel or Rails + Postgres on a VPS | Mature, one server, cheap | `logic.js` must be rewritten in PHP/Ruby, which needs a second parity proof. We own patching and backups | ✘ unless a PHP team takes over |
+| Stay on the Claude Artifact, harden it | Zero migration | The artifact db can't enforce roles per path the way needed (flaw 2). No server code. Size limits | ✘ for daily work. Fine as Cockpit until cutover |
+| Low-code (Retool, AppSheet, Glide) | Fast screens | Pricing logic, PDPA controls and Thai invoices later are awkward. Lock-in | ✘ |
+
+**Open question:** PDPA cross-border transfer. Hosting in Singapore means personal data leaves Thailand. Ask counsel whether the vendor's terms are enough, or whether a Thai region or consent wording is needed.
+
+---
+
+## 4. Step 2 build order (after approval)
+Each milestone is its own small branch with tests, and nothing goes live until M6.
+
+| # | Milestone | Done when | Effort |
+| --- | --- | --- | --- |
+| M1 | Repo: Next.js + TS, `logic.js` shared unchanged, unit + parity ported | `npm test` green, same numbers | S |
+| M2 | Schema + RLS + sequence + `activity` table + importer for `data/` (master data + open jobs, idempotent) | Import twice, same row counts. Store user can't write any table directly | M |
+| M3 | Server API: create/edit order, lines with version check, status moves with all guards, check-out/in, master data | Tests: store can't change price or move Quote→Order (403). Stale `rev` gets 409. Guards enforced | L |
+| M4 | UI port: Jobs, order sheet, Store, Catalog, Customers, Crew, Repairs, Team, Cockpit. Thai/English. 390 px with no sideways scroll | Playwright at 390 px passes | L |
+| M5 | Crew IDs: admin-only table, masked, every view/download logged, expiring link | Tests use synthetic checksum-valid IDs only | M |
+| M6 | Backups + restore test. LINE spike outcome. Pilot with one salesperson on new jobs only | Restore proven once. Pilot week with no lost edits | M |
+
+Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 5B) and invoices. Treat this as an estimate to revisit after M2.
+
+**Leaving room for invoices:** keep `orders` free of invoice fields. Later, add `invoices` and `invoice_lines` tables that reference an order, with their own gap-free number sequence and VAT/WHT fields. Nothing in M1–M6 blocks this.
+
+---
+
+## 5. Open questions for Gene
+1. **D0:** OK to export a parity snapshot (no crew IDs) to git-ignored `data/`?
+2. Who owns the old system's code and database? Can we get a read-only API key or a DB replica?
+3. Who may approve a job: the salesperson, or a manager?
+4. Does insurance carry VAT?
+5. What is the real Weekly/DPW rule? Please give 2 real weekly jobs to check against.
+6. Shipped/Returned: option A, B or C (flaw 5)? Who from Store decides with you?
+7. Can Store count 10–20 items to settle `stock` vs `onHand`?
+8. What does a client production need from the crew list: full national ID, or masked?
+9. Do order numbers need to be gap-free?
+10. Sign-in: is LINE a must on day one, or can staff start with Google or email codes?
+11. PDPA: is hosting in Singapore acceptable? Who is the data controller contact?
+12. Budget ceiling for hosting per month?
+13. Where is `lighthouse-dispatch-handoff.zip`? If it exists, its tests should be merged with these.
