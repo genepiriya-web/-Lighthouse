@@ -38,6 +38,13 @@ All writes need `rev` (the version you read) and return the new `rev`; a stale `
 | POST | `/api/orders/:id/checkout` / `checkin` | store, admin |
 | POST | `/api/orders/:id/fix-status` `{ to, reason }` | admin |
 
-Locally, run `LHD_AUTH=dev npm start` and send `x-dev-user: <staff user id>`. Real sign-in comes with Supabase (M6).
+### Try the screens locally
+```bash
+npm run db:start && npm run db:migrate && npm run db:import
+node scripts/dev-staff.js          # five made-up staff, one per role
+npm run build
+LHD_AUTH=dev npm start             # then open http://localhost:3000/dev-login
+```
+`/dev-login` picks a test staff member (works only against a local database). API callers can send `x-dev-user: <staff user id>` instead. Real sign-in comes with Supabase (M6).
 
 See `CLAUDE.md` for the rules and `docs/PLAN.md` for the move to a standalone app.

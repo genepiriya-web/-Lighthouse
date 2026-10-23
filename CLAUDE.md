@@ -16,7 +16,9 @@ Gene (MD) decides. Give pros and cons for every proposal. Never guess facts: wri
 - `snapshot/published.html` — the live artifact as of version 1792642455-d04d. `test:ui` checks the build matches it; update it only when you republish.
 - `data/` — git-ignored. Exports of real data (`data/export/` artifact db dump, `data/parity.json`) live here and never get committed. Never export the artifact's `secure` collection.
 - `lib/logic.ts` — the only way the Next.js app imports `src/logic.js` (typed by `src/logic.d.ts`). Server routes and client components both use it.
-- `app/` — Next.js (App Router). `app/api/totals` prices a job on the server; `app/price-check.tsx` prices it in the browser.
+- `app/` — Next.js (App Router). Screens: `app/jobs` (list), `app/jobs/new`, `app/jobs/[id]` (job sheet), `app/dev-login`; shared frame in `app/ui/app.tsx`. `app/api/**` is the server API. `app/price-check` is the M1 check page.
+- `lib/rules.ts` — rules shared by server and screens (special prices, who may edit details/money/store). `lib/i18n.ts` + `lib/i18n.artifact.json` — Thai/English; reuse artifact strings (re-extract with `node scripts/extract-i18n.js`), and list any new Thai for review.
+- `app/globals.css` — the artifact's CSS copied as-is plus a few phone-layout additions. Screens must work at 390 px with no sideways scroll.
 - `supabase/migrations/` — schema, RLS, guards. Same SQL on Supabase and local. `supabase/local-shim.sql` fakes Supabase's roles/`auth.uid()` locally; never apply it to Supabase.
 - `scripts/db.js` (local Postgres 17 in `.pgdata/`, git-ignored) · `scripts/migrate.js` · `scripts/import.js` (idempotent loader for `data/export`).
 

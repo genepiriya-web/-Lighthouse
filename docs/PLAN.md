@@ -1,6 +1,6 @@
 # Lighthouse Dispatch — plan to move daily work into v2
 
-Status: **approved by Gene 23 Oct 2026** · M1 done · M2 and M3 done on local Postgres (Supabase project not created yet).
+Status: **approved by Gene 23 Oct 2026** · M1–M3 done · M4 first slice done (job workflow screens) · all on local Postgres (Supabase project not created yet).
 
 ### Progress
 | Milestone | State | Evidence |
@@ -9,6 +9,8 @@ Status: **approved by Gene 23 Oct 2026** · M1 done · M2 and M3 done on local P
 | M1 Next.js + shared logic | Done | `/api/totals` and the browser give identical totals on all 209 jobs (`npm run test:api`); no sideways scroll at 390 px |
 | M2 Schema, RLS, importer | Done locally | `npm run test:db`, 11 tests: RLS forced on every table; no client role (admin included) can write; store can't change prices or move Quote→Order; legacy jobs read-only even to the server; activity append-only; 20 concurrent order numbers unique; import twice = identical rows; all 209 jobs still match the old system when read back from Postgres |
 | M3 Order API | Done locally | `npm run test:orders`, 11 end-to-end tests over HTTP on a throwaway database. Store gets 403 changing items/prices or moving Quote→Order. Every guard (customer, dates, items, stock clash across legacy + v2, check-out, check-in) returns its reason. Two saves from one `rev`: one wins, one gets 409. Legacy jobs 409 on every endpoint. One activity row per change. A mutation check (disabling the rev and role checks) made 5 tests fail |
+| M4 Screens, slice 1 | Done locally | Jobs list, new job, job sheet (details, items with catalog search and packages, totals, extra discount/adjust/insurance, status moves, CEO price confirmation, check-out/in, history). Thai/English. Walked through in the browser at 390 px as sale → store → CEO → store on the real data: no sideways scroll. Uses the artifact's own CSS and its 298 Thai/English strings |
+| M4 Screens, slice 2+ | Next | Crew picker on jobs, copy job, send damaged items to repair, Catalog, Customers (incl. flagged-new review), Crew rates, Repairs, Team, Settings, Cockpit, Quotation/Draft INV documents, Playwright test at 390 px |
 
 **M2 import of the 23 Oct export:** 3,275 products, 192 kit parts, 1,249 customers (1,247 from the old list plus 2 flagged new; 1,047 with tax IDs), 784 crew, 2,582 crew rates (2 marked for review), 106 positions, 209 jobs (all linked to a customer), 3,848 lines, 418 history entries. It took about 0.5 s and skipped nothing.
 
@@ -300,6 +302,8 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
     - **Logged:** every confirmation is in the activity log.
     - **Impact on today's data:** 23 of 209 jobs (11%) have at least one line that would need the CEO before shipping.
     - **Assumptions to confirm (Q26):** (1) the gate is the move to **Shipped**, not Order or Approve; (2) "CEO" means the **admin role**, since there's no separate CEO role.
+27. **New Thai text needs a native-speaker check.** About 30 strings the artifact never had are written in `lib/i18n.ts` (`extra.th`): test sign-in, CEO price confirmation, save items, reload, legacy notice, and the new history entries. Everything else is the artifact's own text, copied word for word.
+28. **Local test sign-in.** `/dev-login` lets you pick one of five made-up staff (`node scripts/dev-staff.js`). It works only with `LHD_AUTH=dev` against a database on this Mac. Real sign-in replaces it in M6.
     - **Q24:** some "below catalog" lines may be quotes made before a catalog price went up, not discounts. Should a job keep the catalog price from the day it was quoted?
     - **Q25, decided by Gene on 23 Oct 2026: no.** Sales can still mark lines FOC or standby, as today. Every change, including FOC, is recorded in the activity log.
 22. **Not built in M3, still on the artifact only:** copy job as new quote; send damaged items to repair from check-in; catalog/customer edits; Cockpit. They come with M4 (screens), unless you want them earlier.
