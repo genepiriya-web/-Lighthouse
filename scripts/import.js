@@ -44,6 +44,11 @@ async function importExport(c,dir,{log=()=>{}}={}){
     await c.query("set local app.importer = 'on'");
 
     counts.positions=await upsert(c,"positions","id",(X.config.positions||[]).map(p=>({id:+p.id,code:str(p.code),name:String(p.name??""),dept:num(p.dept),sort:num(p.sort)})));
+    // Crew rates also point at positions missing from the config list (often retired ones); their code and name ride
+    // along on each rate. Add those, never overwriting a position the config list defines.
+    const listed=new Set((X.config.positions||[]).map(p=>+p.id)); const extraPos=new Map();
+    for(const r of X.crew) for(const p of (r.pos||[])) if(!listed.has(+p.pid)&&!extraPos.has(+p.pid)) extraPos.set(+p.pid,{id:+p.pid,code:str(p.code),name:String(p.name??"").trim()||String(p.code??p.pid),dept:dept(p.dept),sort:null});
+    counts.positions_from_crew=extraPos.size?(await c.query(`insert into positions select * from json_populate_recordset(null::positions,$1) on conflict (id) do nothing`,[JSON.stringify([...extraPos.values()])])).rowCount:0;
 
     const products=X.catalog.map(p=>({id:+p.id,code:String(p.code??""),description:String(p.desc??""),dept:num(p.dept),type:+p.type,price:n0(p.price),
       discountable:bool(p.discountable),max_disc:n0(p.maxDisc),stock:Math.trunc(n0(p.stock)),one_hand:num(p.oneHand),damage_lost:num(p.damageLost),
