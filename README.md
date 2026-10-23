@@ -14,6 +14,11 @@ npm test           # logic unit tests + parity (parity needs data/parity.json)
 npm run test:ui    # artifact page boots, roles gate tabs/buttons, Thai strings complete, build == published
 npm run test:api   # built app's /api/totals equals logic.js on synthetic cases and every parity job
 npm run dev        # http://localhost:3000 — price check page (Thai/English)
+
+npm run db:start   # local Postgres 17 on 127.0.0.1:54329 (no Homebrew/Docker; data in .pgdata/)
+npm run db:migrate # schema + row-level security
+npm run db:import  # load data/export (artifact db dump) — safe to re-run
+npm run test:db    # RLS, ownership, append-only log, order numbers, importer idempotency
 ```
 
 See `CLAUDE.md` for the rules and `docs/PLAN.md` for the move to a standalone app.

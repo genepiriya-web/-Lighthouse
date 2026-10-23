@@ -1,6 +1,23 @@
 # Lighthouse Dispatch — plan to move daily work into v2
 
-Status: **draft for Gene's approval** · 23 Oct 2026 · No Step 2 code is written until Gene approves this plan.
+Status: **approved by Gene 23 Oct 2026** · M1 done · M2 done on local Postgres (Supabase project not created yet).
+
+### Progress
+| Milestone | State | Evidence |
+| --- | --- | --- |
+| Parity snapshot | Done | 209/209 jobs and 783/783 lines match the old system (`npm test`). Fixture is pricing fields only, git-ignored |
+| M1 Next.js + shared logic | Done | `/api/totals` and the browser give identical totals on all 209 jobs (`npm run test:api`); no sideways scroll at 390 px |
+| M2 Schema, RLS, importer | Done locally | `npm run test:db`, 11 tests: RLS forced on every table; no client role (admin included) can write; store can't change prices or move Quote→Order; legacy jobs read-only even to the server; activity append-only; 20 concurrent order numbers unique; import twice = identical rows; all 209 jobs still match the old system when read back from Postgres |
+
+**M2 import of the 23 Oct export:** 3,275 products, 192 kit parts, 1,247 customers (1,047 with tax IDs), 784 crew, 2,581 crew rates, 106 positions, 209 jobs, 3,848 lines, 418 history entries. It took about 0.5 s.
+
+Things the importer skipped:
+- 1 crew rate that appears twice for the same crew and position.
+- The customer link on 2 jobs whose customer ID isn't in the customer list. The jobs keep the customer's name.
+
+**How M2 runs locally:** Postgres 17.10 from the `embedded-postgres` npm package. There's no Homebrew or Docker on this Mac. It listens on 127.0.0.1 only, with a generated password kept in git-ignored `.env.local`.
+
+`supabase/local-shim.sql` recreates Supabase's roles, `auth.uid()` and default grants. The migration then runs unchanged on Supabase, and a table that forgets its revoke fails locally too.
 
 **Recommendation in one line:** build a standalone app on Next.js + Supabase Postgres (Singapore region). All writes go through server code that runs the same `logic.js`, and the database refuses direct writes. Fix flaws 1–4 before anyone keys a real job into v2. Move to v2 one job at a time: new jobs start in v2, old jobs finish in the old system.
 
@@ -275,3 +292,11 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
 11. PDPA: is hosting in Singapore acceptable? Who is the data controller contact?
 12. Budget ceiling for hosting per month?
 13. Where is `lighthouse-dispatch-handoff.zip`? If it exists, its tests should be merged with these.
+
+### Found during M2
+14. **Customer tax IDs are personal data for individuals.** A Thai individual's tax ID is their national ID number. 1,047 customers have one. M2 stores them in a separate table readable only by admin, sale and accounting. Is that the right group? Should Store ever see them?
+15. **Crew cost (what we pay crew)** is now readable only by admin and the crew manager. Sales sees the price we charge, not the cost. Correct?
+16. **The old system calls the second stock field `oneHand`** (the brief wrote `onHand`). Both `stock` and `oneHand` are imported. Flaw 6 (Store count) still decides which one means "units owned".
+17. **One crew member has the same position listed twice** with possibly different rates. The importer keeps the first. Should someone check that crew record in the old system?
+18. **Two jobs point to customer IDs missing from the customer list.** Were those customers deleted in the old system?
+19. **Staff accounts:** artifact user IDs don't carry over to Supabase sign-in. When the Supabase project exists, who gets which role (admin / sale / store / accounting / crew)?

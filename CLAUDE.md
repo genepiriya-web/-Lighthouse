@@ -14,14 +14,22 @@ Gene (MD) decides. Give pros and cons for every proposal. Never guess facts: wri
 - `src/app.html` — the page with a `/*@@LOGIC@@*/` slot.
 - `scripts/build.js` → `dist/app.html`, the file published as the Claude Artifact.
 - `snapshot/published.html` — the live artifact as of version 1792642455-d04d. `test:ui` checks the build matches it; update it only when you republish.
-- `data/` — git-ignored. Exports of real data (parity fixtures, master data) live here and never get committed.
-
+- `data/` — git-ignored. Exports of real data (`data/export/` artifact db dump, `data/parity.json`) live here and never get committed. Never export the artifact's `secure` collection.
 - `lib/logic.ts` — the only way the Next.js app imports `src/logic.js` (typed by `src/logic.d.ts`). Server routes and client components both use it.
 - `app/` — Next.js (App Router). `app/api/totals` prices a job on the server; `app/price-check.tsx` prices it in the browser.
+- `supabase/migrations/` — schema, RLS, guards. Same SQL on Supabase and local. `supabase/local-shim.sql` fakes Supabase's roles/`auth.uid()` locally; never apply it to Supabase.
+- `scripts/db.js` (local Postgres 17 in `.pgdata/`, git-ignored) · `scripts/migrate.js` · `scripts/import.js` (idempotent loader for `data/export`).
+
+## Database rules (enforced by tests/db.test.js — keep them true)
+- Every public table: RLS enabled and forced, SELECT policies only. Client roles (`anon`, `authenticated`) never write; all writes go through the server as `service_role` after running `logic.js`. A new table must be added to the RLS block in the migration and to `ALL_TABLES` in the test.
+- `orders.owner = 'legacy'` rows (and their lines) are read-only to everyone but the importer. The importer never touches `owner = 'v2'` / `source = 'v2'` rows.
+- `activity` is append-only for everyone. `customer_tax_ids` (individuals' tax ID = national ID): admin/sale/accounting only. `crew_rate_costs`: admin/crew only.
+- Don't edit an applied migration once it has run on Supabase; add a new one. (Before then, editing `…_init.sql` and resetting local is fine.)
 
 ## Commands
 - `npm run build` (artifact page + Next.js) · `npm run build:artifact` · `npm run typecheck`
 - `npm test` (unit + parity) · `npm run test:ui` (jsdom, artifact page) · `npm run test:api` (starts the built app, prices every parity job via the API)
+- `npm run db:start` · `npm run db:migrate` · `npm run db:import` · `npm run test:db` (throwaway database per run) · `npm run db:stop`
 - Parity is skipped until `data/parity.json` exists. Build it with `node scripts/make-parity.js <artifact-db-export-dir>`.
 - Pin dependency versions exactly, and only to releases at least two weeks old.
 
