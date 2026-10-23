@@ -21,6 +21,7 @@ npm run db:import  # load data/export (artifact db dump) — safe to re-run
 npm run test:db    # RLS, ownership, append-only log, order numbers, importer idempotency
 npm run test:orders # order API end to end, as each role (after npm run build)
 npm run test:master # catalog, customers, crew rates, team, settings — roles, privacy, re-import safety
+npm run test:slice4 # cockpit (admin) and job documents over HTTP
 npm run test:e2e   # Playwright at 390 px: a job's life as sale → store → CEO → store (after npm run build)
 ```
 
@@ -48,6 +49,8 @@ All writes need `rev` (the version you read) and return the new `rev`; a stale `
 | GET | `/api/crew-rates` | any staff; cost only admin, crew manager |
 | GET / PATCH | `/api/staff`, `/api/staff/:id` `{ role, active }` | admin (not yourself) |
 | GET / PUT | `/api/settings`, `/api/settings/company` | read: any staff · change: admin |
+| GET | `/api/cockpit` | admin (logic.js `diagnose` over all open jobs) |
+| GET | `/api/orders/:id/document?kind=quote\|draft\|items&disc=1\|0` | any staff (HTML file, as the artifact downloaded) |
 
 ### Try the screens locally
 ```bash

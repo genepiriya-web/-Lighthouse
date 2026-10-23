@@ -1,6 +1,6 @@
 # Lighthouse Dispatch — plan to move daily work into v2
 
-Status: **approved by Gene 23 Oct 2026** · M1–M3 done · M4 slices 1–3 done (job workflow + master data) · all on local Postgres (Supabase project not created yet).
+Status: **approved by Gene 23 Oct 2026** · M1–M4 done (all screens) · next: M5 crew IDs, M6 Supabase + go-live · all on local Postgres (Supabase project not created yet).
 
 ### Progress
 | Milestone | State | Evidence |
@@ -12,7 +12,7 @@ Status: **approved by Gene 23 Oct 2026** · M1–M3 done · M4 slices 1–3 done
 | M4 Screens, slice 1 | Done locally | Jobs list, new job, job sheet (details, items with catalog search and packages, totals, extra discount/adjust/insurance, status moves, CEO price confirmation, check-out/in, history). Thai/English. Walked through in the browser at 390 px as sale → store → CEO → store on the real data: no sideways scroll. Uses the artifact's own CSS and its 298 Thai/English strings |
 | M4 Screens, slice 2 | Done locally | Crew picker on jobs (position rates, OT rate, repeated-rate flag, never cost), copy any job (legacy too) as a new quote, send damaged items to repair + Repairs screen. `npm run test:e2e`: Playwright at 390 × 844 walks a job sale → store → CEO → store and checks every screen for content past the screen edge. The real data was also checked by hand (198-job list, a 123-line legacy job) |
 | M4 Screens, slice 3 | Done locally | Catalog (admin/store add/edit, packages), Customers (admin/sale add/edit, tax ID only for admin/sale/accounting and never logged, flagged-new review), Crew rates (view only, cost for admin/crew), Team (admin: roles, switch off, never yourself), Settings (admin: company details). Editing an old-system record makes v2 its owner so imports don't overwrite it. `npm run test:master` (7) + phone test. Real data checked by hand at 390 px |
-| M4 Screens, slice 4 | Next | Cockpit (problems, money, equipment), Store day view (going out / coming back / overdue — on the artifact, not built yet), Quotation / Draft INV / item-list documents |
+| M4 Screens, slice 4 | Done locally | Cockpit (admin; problems, money, equipment). Store day view. Quotation / Draft INV / Item list with or without discount, as an HTML download and a sandboxed preview. `lib/docs.js` produces byte-identical HTML to the artifact for all 5 variants (`tests/docs.test.js` runs the artifact's own code to compare). On the real data the server Cockpit matches `diagnose()` on the original export exactly: 59 problems by kind, ฿2,071,742.48 confirmed. Only the 2 local test jobs add 2 "price changed" flags |
 
 **M2 import of the 23 Oct export:** 3,275 products, 192 kit parts, 1,249 customers (1,247 from the old list plus 2 flagged new; 1,047 with tax IDs), 784 crew, 2,582 crew rates (2 marked for review), 106 positions, 209 jobs (all linked to a customer), 3,848 lines, 418 history entries. It took about 0.5 s and skipped nothing.
 
@@ -313,6 +313,10 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
     - **Store can change catalog prices and discount limits.** That changes what counts as a "special price" for the CEO check. Should price, discountable and max discount be admin-only?
     - **Crew rates are view-only,** as on the artifact (the role guide says the crew manager handles crew rates, but the artifact never let anyone edit them). Should the crew manager be able to edit rates in v2?
     - **Adding staff** waits for real sign-in (M6). Until then the Team screen changes roles and switches people off.
+31. **Found during slice 4:**
+    - **The importer now recomputes totals and stock usage with `logic.js`** instead of copying the artifact's cached values (flaw 7). On the 209 real jobs the values are identical, field by field; a job without cached totals would otherwise have shown as a false "mismatch".
+    - **Remark/footer templates come from the old system as HTML.** Documents keep only plain text tags (p, br, b, strong, i, em, u, ul, ol, li, span, div) with no attributes. The preview runs in a sandboxed frame under a no-script content policy.
+    - **Documents aren't logged as activity** (viewing isn't a change), same as the artifact. The crew-ID list is different: it will be logged on every view and download (M5).
 28. **Local test sign-in.** `/dev-login` lets you pick one of five made-up staff (`node scripts/dev-staff.js`). It works only with `LHD_AUTH=dev` against a database on this Mac. Real sign-in replaces it in M6.
     - **Q24:** some "below catalog" lines may be quotes made before a catalog price went up, not discounts. Should a job keep the catalog price from the day it was quoted?
     - **Q25, decided by Gene on 23 Oct 2026: no.** Sales can still mark lines FOC or standby, as today. Every change, including FOC, is recorded in the activity log.
