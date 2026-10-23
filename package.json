@@ -18,7 +18,8 @@
     "db:import": "node scripts/import.js",
     "test:db": "node --test --test-concurrency=1 tests/db.test.js",
     "test:orders": "node --test --test-concurrency=1 tests/orders-api.test.js",
-    "test:e2e": "node e2e/db.js setup && playwright test; s=$?; node e2e/db.js teardown; exit $s"
+    "test:e2e": "node e2e/db.js setup && playwright test; s=$?; node e2e/db.js teardown; exit $s",
+    "test:master": "node --test --test-concurrency=1 tests/master-api.test.js"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",
