@@ -11,6 +11,7 @@ import {
   type Line, type Order, type Status,
 } from "../logic";
 import { ApiError, bad } from "./http";
+import { priceBreaks, type PriceBreak } from "../rules";
 import type { Caller } from "./auth";
 
 // ---------- shapes ----------
@@ -221,6 +222,9 @@ export async function saveLines(c: PoolClient, who: Caller, id: string, body: Re
   const lines = cleanLines(body.lines);
   const before = await loadLines(c, id);
   const keep = new Map(before.map(l => [l.k, l])); // check-out/in counts are not editable here; carry them over
+  const breaks = await checkPrices(c, lines, keep);
+  if (breaks.length && who.role !== "admin")
+    throw new ApiError(403, "price_rule", "Only an admin can price items below catalog or discount beyond the item's limit", { breaks });
   await c.query("delete from order_lines where order_id = $1", [id]);
   if (lines.length) await c.query(`insert into order_lines (order_id,k,sort,t,pid,code,description,list,qty,days,disc,foc,sb,ot,ot_rate,ratio,parent_k,start_date,end_date,out_qty,in_qty,dmg,lost,repaired,crew_id,remark)
     select $1, x.k, x.sort, x.t, x.pid, x.code, x."desc", x.list, x.qty, x.days, x.disc, x.foc, x.sb, x.ot, x."otRate", x.ratio, x.parent, x.start::date, x."end"::date,
@@ -229,8 +233,19 @@ export async function saveLines(c: PoolClient, who: Caller, id: string, body: Re
       ot numeric, "otRate" numeric, ratio numeric, parent text, start text, "end" text, out numeric, "in" numeric, dmg numeric, lost numeric, repaired bool, "crewId" text, remark text)`,
     [id, JSON.stringify(lines.map((l, i) => { const p = keep.get(l.k); return { ...l, sort: i, out: p?.out ?? 0, in: p?.in ?? 0, dmg: p?.dmg ?? 0, lost: p?.lost ?? 0, repaired: p?.repaired ?? false }; }))]);
   const rev = await finish(c, o, who);
-  await logActivity(c, who, id, "items", diffLines(before, lines));
+  await logActivity(c, who, id, "items", { ...diffLines(before, lines), ...(breaks.length && { overrides: breaks }) });
   return { id, rev };
+}
+
+/** Price-rule breaks on lines that are new or whose item, price or discount changed. Untouched lines keep whatever an
+ *  admin approved earlier, so sales can still edit the rest of the job. */
+async function checkPrices(c: PoolClient, lines: SLine[], before: Map<string, SLine>): Promise<PriceBreak[]> {
+  const touched = lines.filter(l => { const p = before.get(l.k);
+    return !p || p.pid !== l.pid || Number(p.list) !== Number(l.list) || Number(p.disc) !== Number(l.disc) || !!p.foc !== !!l.foc || !!p.sb !== !!l.sb || !!p.parent !== !!l.parent || p.t !== l.t; });
+  const pids = [...new Set(touched.map(l => l.pid).filter((x): x is number => x != null))];
+  if (!pids.length) return [];
+  const cat = new Map((await c.query(`select id, price, discountable, max_disc as "maxDisc" from products where id = any($1::int[])`, [pids])).rows.map(r => [r.id, r]));
+  return touched.flatMap(l => priceBreaks(l, l.pid == null ? undefined : cat.get(l.pid)));
 }
 
 /** Items short on the job's dates, counting every job that holds stock — legacy and v2 alike (flaw 1). */

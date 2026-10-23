@@ -148,6 +148,34 @@ test("header vs money permissions follow the artifact: accounting edits fees, no
   assert.equal((await api("sale","PATCH",`/api/orders/${j.id}`,{rev:2,totals:{}})).body.error,"unknown_fields");
 });
 
+test("price rule (Gene, Q21b): below catalog or over the discount limit needs an admin",{skip},async()=>{
+  // Fixture catalog: M18 (1) ฿24,000, discountable, no cap · CG (2) ฿150, not discountable · GEN (3) ฿9,000, max 20%.
+  const j=ok(await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Price rule job"})); let r=0;
+  const put=(who,lines)=>api(who,"PUT",`/api/orders/${j.id}/lines`,{rev:r,lines});
+  const rule=async(lines,expect)=>{ const x=await put("sale",lines); assert.equal(x.status,403,JSON.stringify(x.body)); assert.equal(x.body.error,"price_rule");
+    assert.deepEqual(x.body.breaks.map(b=>[b.k,b.rule,b.value,b.limit]),expect); };
+  await rule([{k:"a",t:1,pid:1,code:"M18",list:20000,qty:1,days:1}],[["a","below_catalog",20000,24000]]);
+  await rule([{k:"b",t:2,pid:2,code:"CG",list:150,qty:4,days:1,disc:5}],[["b","no_discount",5,0]]);
+  await rule([{k:"c",t:4,pid:3,code:"GEN",list:9000,qty:1,days:1,disc:25}],[["c","over_max_disc",25,20]]);
+  await rule([{k:"a",t:1,pid:1,list:1,qty:1,days:1},{k:"c",t:4,pid:3,list:8000,qty:1,days:1,disc:30}],[["a","below_catalog",1,24000],["c","below_catalog",8000,9000],["c","over_max_disc",30,20]]);
+  // Allowed for sale: at or above catalog, within the limit, no-cap items, FOC, kit parts, crew lines.
+  const fine=[{k:"a",t:1,pid:1,code:"M18",list:26000,qty:1,days:1,disc:70},{k:"c",t:4,pid:3,code:"GEN",list:9000,qty:1,days:1,disc:20},
+    {k:"p",t:2,pid:2,code:"CG",list:0,qty:4,days:1,parent:"c"},{k:"f",t:2,pid:2,code:"CG",list:150,qty:1,days:1,foc:true},
+    {k:"g",t:5,code:"G01",list:1,qty:1,days:1,crewId:"500"},{k:"x",t:6,code:"SUB",list:5,qty:1,days:1}];
+  r=ok(await put("sale",fine),"sale within rules").rev;
+  // An admin may break it; the override is recorded with the change.
+  const adminLines=fine.map(l=>l.k==="c"?{...l,list:7000,disc:35}:l);
+  r=ok(await put("admin",adminLines),"admin override").rev;
+  const act=ok(await api("admin","GET",`/api/orders/${j.id}`)).activity.at(-1);
+  assert.equal(act.actor_name,"Test admin"); assert.deepEqual(act.detail.overrides.map(b=>[b.k,b.rule]),[["c","below_catalog"],["c","over_max_disc"]]);
+  // Sale can still edit other lines without touching the admin-approved one...
+  r=ok(await put("sale",adminLines.map(l=>l.k==="a"?{...l,qty:2}:l)),"sale edits around the override").rev;
+  // ...but changing the approved line again needs an admin.
+  await rule(adminLines.map(l=>l.k==="c"?{...l,disc:36}:l),[["c","below_catalog",7000,9000],["c","over_max_disc",36,20]]);
+  // Turning a kit part into a normal line is a change too.
+  await rule(adminLines.map(l=>l.k==="p"?{...l,parent:undefined}:l),[["p","below_catalog",0,150]]);
+});
+
 test("legacy jobs are read-only through every endpoint",{skip},async()=>{
   const r0=await rev("6900001");
   for(const [m,p,b] of [["PATCH","",{note:"x"}],["PUT","/lines",{lines:[]}],["POST","/move",{to:"Approve"}],["POST","/fix-status",{to:"Cancel",reason:"test"}],["POST","/checkout",{all:true}]]){
