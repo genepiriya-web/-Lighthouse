@@ -14,7 +14,7 @@ const urlFor=db=>{ const u=new URL(ADMIN); u.pathname="/"+db; return u.toString(
 const ROLES=["admin","sale","store","accounting","crew"]; const uid={}; for(const r of ROLES) uid[r]=crypto.randomUUID();
 const NOT_STAFF=crypto.randomUUID(), INACTIVE=crypto.randomUUID();
 const ALL_TABLES=["staff","positions","products","kit_parts","customers","customer_tax_ids","crew","crew_rates","crew_rate_costs",
-  "settings","orders","order_lines","repairs","order_counters","activity","import_runs"];
+  "settings","orders","order_lines","repairs","order_counters","activity","import_runs","crew_national_ids","crew_id_links"];
 
 const {writeFixture}=require("./helpers/fixture");
 
@@ -110,6 +110,7 @@ test("RLS: customer tax IDs only for admin/sale/accounting; crew costs only for 
   for(const r of ["admin","crew"]) assert.equal(await cnt(r,"crew_rate_costs"),costN);
   for(const r of ["sale","store","accounting"]) assert.equal(await cnt(r,"crew_rate_costs"),0);
   for(const r of ROLES) assert.ok(denied(await cnt(r,"order_counters")),`${r} read order_counters`);
+  for(const r of ROLES) for(const t of ["crew_national_ids","crew_id_links"]) assert.ok(denied(await cnt(r,t)),`${r} read ${t} directly`);
 });
 
 test("ownership: legacy jobs are read-only even for the server role; v2 jobs are writable and survive re-import",{skip},async()=>{

@@ -22,12 +22,14 @@ function init(){
   writeEnv({DATABASE_URL:`postgres://postgres:${pw}@127.0.0.1:${PORT}/lighthouse`,DATABASE_ADMIN_URL:`postgres://postgres:${pw}@127.0.0.1:${PORT}/postgres`});
   console.log("initialised .pgdata and wrote DATABASE_URL to .env.local");
 }
+// Local encryption key for crew national IDs (M5). Production sets its own CREW_ID_KEY; never reuse this one.
+function ensureKeys(){ if(!readEnv().CREW_ID_KEY){ writeEnv({CREW_ID_KEY:crypto.randomBytes(32).toString("base64")}); console.log("wrote a local CREW_ID_KEY to .env.local"); } }
 const status=()=>{ try{ execFileSync(bin("pg_ctl"),["-D",dataDir,"status"],{stdio:"ignore"}); return true; }catch{ return false; } };
 
 const cmd=process.argv[2];
 async function ensureDb(){ const {Client}=require("pg"); const c=new Client({connectionString:readEnv().DATABASE_ADMIN_URL}); await c.connect();
   try{ if(!(await c.query("select 1 from pg_database where datname='lighthouse'")).rowCount) { await c.query("create database lighthouse"); console.log("created database lighthouse"); } } finally { await c.end(); } }
-if(cmd==="start"){ init(); if(status()) console.log("already running"); else run("pg_ctl",["-D",dataDir,"-l",path.join(dataDir,"server.log"),"-w","start"],{stdio:"ignore"}); console.log(`postgres on 127.0.0.1:${PORT}`); ensureDb().catch(e=>{console.error(e.message);process.exit(1);}); }
+if(cmd==="start"){ init(); ensureKeys(); if(status()) console.log("already running"); else run("pg_ctl",["-D",dataDir,"-l",path.join(dataDir,"server.log"),"-w","start"],{stdio:"ignore"}); console.log(`postgres on 127.0.0.1:${PORT}`); ensureDb().catch(e=>{console.error(e.message);process.exit(1);}); }
 else if(cmd==="stop"){ if(status()) run("pg_ctl",["-D",dataDir,"-w","stop"],{stdio:"ignore"}); console.log("stopped"); }
 else if(cmd==="status"){ console.log(status()?"running":"stopped"); }
 else if(cmd==="url"){ console.log(readEnv().DATABASE_URL||""); }
