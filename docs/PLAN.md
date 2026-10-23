@@ -1,6 +1,6 @@
 # Lighthouse Dispatch — plan to move daily work into v2
 
-Status: **approved by Gene 23 Oct 2026** · M1–M3 done · M4 slices 1–2 done (job workflow complete) · all on local Postgres (Supabase project not created yet).
+Status: **approved by Gene 23 Oct 2026** · M1–M3 done · M4 slices 1–3 done (job workflow + master data) · all on local Postgres (Supabase project not created yet).
 
 ### Progress
 | Milestone | State | Evidence |
@@ -11,8 +11,8 @@ Status: **approved by Gene 23 Oct 2026** · M1–M3 done · M4 slices 1–2 done
 | M3 Order API | Done locally | `npm run test:orders`, 11 end-to-end tests over HTTP on a throwaway database. Store gets 403 changing items/prices or moving Quote→Order. Every guard (customer, dates, items, stock clash across legacy + v2, check-out, check-in) returns its reason. Two saves from one `rev`: one wins, one gets 409. Legacy jobs 409 on every endpoint. One activity row per change. A mutation check (disabling the rev and role checks) made 5 tests fail |
 | M4 Screens, slice 1 | Done locally | Jobs list, new job, job sheet (details, items with catalog search and packages, totals, extra discount/adjust/insurance, status moves, CEO price confirmation, check-out/in, history). Thai/English. Walked through in the browser at 390 px as sale → store → CEO → store on the real data: no sideways scroll. Uses the artifact's own CSS and its 298 Thai/English strings |
 | M4 Screens, slice 2 | Done locally | Crew picker on jobs (position rates, OT rate, repeated-rate flag, never cost), copy any job (legacy too) as a new quote, send damaged items to repair + Repairs screen. `npm run test:e2e`: Playwright at 390 × 844 walks a job sale → store → CEO → store and checks every screen for content past the screen edge. The real data was also checked by hand (198-job list, a 123-line legacy job) |
-| M4 Screens, slice 3 | Next | Catalog, Customers (incl. reviewing flagged-new customers), Crew rates, Team (roles), Settings — admin edits, server-checked, logged |
-| M4 Screens, slice 4 | Later | Cockpit (problems, money, equipment) and Quotation / Draft INV documents |
+| M4 Screens, slice 3 | Done locally | Catalog (admin/store add/edit, packages), Customers (admin/sale add/edit, tax ID only for admin/sale/accounting and never logged, flagged-new review), Crew rates (view only, cost for admin/crew), Team (admin: roles, switch off, never yourself), Settings (admin: company details). Editing an old-system record makes v2 its owner so imports don't overwrite it. `npm run test:master` (7) + phone test. Real data checked by hand at 390 px |
+| M4 Screens, slice 4 | Next | Cockpit (problems, money, equipment), Store day view (going out / coming back / overdue — on the artifact, not built yet), Quotation / Draft INV / item-list documents |
 
 **M2 import of the 23 Oct export:** 3,275 products, 192 kit parts, 1,249 customers (1,247 from the old list plus 2 flagged new; 1,047 with tax IDs), 784 crew, 2,582 crew rates (2 marked for review), 106 positions, 209 jobs (all linked to a customer), 3,848 lines, 418 history entries. It took about 0.5 s and skipped nothing.
 
@@ -308,6 +308,11 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
 29. **Found during slice 2:**
     - **Positions:** 17 positions used by 553 crew rates were missing from the copied position list (probably retired ones). The importer now adds them from the crew records, so every rate shows its position.
     - **My earlier phone-width checks were weaker than reported.** `overflow-x: hidden` on the page clips anything too wide instead of scrolling, so measuring the page width always passed. The browser test now checks that no element runs past the screen edge, and it was proven to catch a deliberately too-wide layout. The real-data screens pass the stricter check.
+30. **Found during slice 3 (what the artifact does, copied as-is; please confirm):**
+    - **Accounting and crew cost.** The artifact showed crew cost to accounting as well. Your Q15 answer covered admin and the crew manager, so v2 hides cost from accounting. Should accounting see it, for payroll?
+    - **Store can change catalog prices and discount limits.** That changes what counts as a "special price" for the CEO check. Should price, discountable and max discount be admin-only?
+    - **Crew rates are view-only,** as on the artifact (the role guide says the crew manager handles crew rates, but the artifact never let anyone edit them). Should the crew manager be able to edit rates in v2?
+    - **Adding staff** waits for real sign-in (M6). Until then the Team screen changes roles and switches people off.
 28. **Local test sign-in.** `/dev-login` lets you pick one of five made-up staff (`node scripts/dev-staff.js`). It works only with `LHD_AUTH=dev` against a database on this Mac. Real sign-in replaces it in M6.
     - **Q24:** some "below catalog" lines may be quotes made before a catalog price went up, not discounts. Should a job keep the catalog price from the day it was quoted?
     - **Q25, decided by Gene on 23 Oct 2026: no.** Sales can still mark lines FOC or standby, as today. Every change, including FOC, is recorded in the activity log.
@@ -324,7 +329,7 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
 | 18 | Jobs pointing at missing customers | Add them and flag as new customer | Importer creates them from the job's details with `flagged_new`. It never re-flags or overwrites once a person has checked them |
 | 19 | Staff roles on Supabase | Later | Open |
 
-**About Q17:** most crew already have several positions (2,581 rates across 784 crew), and that always worked. The flagged case is different. One crew member has *the same* position (L6 Asst. Head Electrician, Lighting) listed twice: one row at ฿1 for price, OT and cost, the other at ฿45. Both are kept and marked for review. **Q20:** which rate is real? The ฿1 row looks like a test entry in the old system.
+**About Q17:** most crew already have several positions (2,581 rates across 784 crew), and that always worked. The flagged case is different. One crew member has *the same* position (L6 Asst. Head Electrician, Lighting) listed twice: one row at ฿1 for price, OT and cost, the other at ฿45. Both are kept and marked for review. **Q20, answered by the data:** the crew record is named "TestName TestLast (TestNick)". It's a test entry in the old system, not a real person. Both rows stay, flagged.
 
 **About Q18:** the two customers are IDs 1267 and 1268, used by jobs 6902227 and 6902237. They come right after the last customer in the copied list, so they are probably new customers added after the customer list was copied, not deleted ones. The next customer sync will bring their real details. The real record then replaces the placeholder and clears the flag.
 

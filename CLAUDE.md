@@ -31,6 +31,7 @@ Gene (MD) decides. Give pros and cons for every proposal. Never guess facts: wri
 ## Server rules (enforced by tests/orders-api.test.js)
 - Every change to a job goes through `lib/server/orders.ts`, inside `tx()` (service_role). It locks the row, refuses legacy jobs (409 `legacy_read_only`), checks the role with `logic.js` (`moveCheck`, `canEditLines`) plus the artifact's header/money/store rules, checks `rev` (409 `stale`), recomputes totals/usage from stored lines, bumps `rev`, and writes one `activity` row. Never trust totals sent by a client.
 - Special prices (Gene, 23 Oct): sales may save prices below catalog / over the discount limit (`lib/rules.ts`), but moving to Shipped needs the CEO's confirmation (`approve-prices`, admin role) of every current break. FOC/standby stay open to sales (Q25).
+- Master data (`lib/server/master.ts`): edits versioned by `updatedAt` (409 `stale`), logged with before/after. Editing a legacy product/customer sets `source = 'v2'` so the importer stops overwriting it. Tax IDs never go into the activity log.
 - Routes in `app/api/**` stay thin: parse, `requireStaff`, call the service.
 - `LHD_AUTH=dev` (header `x-dev-user`) is for local dev/tests only and refuses to run unless `DATABASE_URL` is on this machine. Real sign-in (Supabase) is M6; until then every non-dev request is 401.
 
@@ -38,6 +39,7 @@ Gene (MD) decides. Give pros and cons for every proposal. Never guess facts: wri
 - `npm run build` (artifact page + Next.js) · `npm run build:artifact` · `npm run typecheck`
 - `npm test` (unit + parity) · `npm run test:ui` (jsdom, artifact page) · `npm run test:api` (starts the built app, prices every parity job via the API)
 - `npm run db:start` · `npm run db:migrate` · `npm run db:import` · `npm run test:db` (throwaway database per run) · `npm run db:stop`
+- `npm run test:master` — catalog/customers/crew/team/settings API (uses `tests/helpers/server.js`)
 - `npm run test:e2e` — Playwright at 390 × 844 on a throwaway database (`e2e/db.js`)
 - `npm run test:orders` — starts the built app on a throwaway database and drives the order API as each role (needs `npm run build` + local Postgres)
 - Parity is skipped until `data/parity.json` exists. Build it with `node scripts/make-parity.js <artifact-db-export-dir>`.

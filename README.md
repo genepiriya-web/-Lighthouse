@@ -20,6 +20,7 @@ npm run db:migrate # schema + row-level security
 npm run db:import  # load data/export (artifact db dump) — safe to re-run
 npm run test:db    # RLS, ownership, append-only log, order numbers, importer idempotency
 npm run test:orders # order API end to end, as each role (after npm run build)
+npm run test:master # catalog, customers, crew rates, team, settings — roles, privacy, re-import safety
 npm run test:e2e   # Playwright at 390 px: a job's life as sale → store → CEO → store (after npm run build)
 ```
 
@@ -41,7 +42,12 @@ All writes need `rev` (the version you read) and return the new `rev`; a stale `
 | POST | `/api/orders/:id/copy` | sale, admin (any job, legacy too → new v2 quote) |
 | POST | `/api/orders/:id/repairs` | store, admin (Shipped/Returned; damaged lines → tickets) |
 | GET / PATCH | `/api/repairs`, `/api/repairs/:id` `{ status, note }` | read: any staff · change: store, admin |
-| GET | `/api/products`, `/api/customers`, `/api/crew` | any staff (no tax IDs, no crew costs) |
+| GET | `/api/products`, `/api/crew` | any staff (job pickers; no crew costs) |
+| GET / POST | `/api/catalog`, GET / PATCH `/api/catalog/:id` `{ updatedAt, … }` | read: any staff · change: admin, store |
+| GET / POST | `/api/customers`, GET / PATCH `/api/customers/:id` `{ updatedAt, … }` | read: any staff (tax ID: admin, sale, accounting) · change: admin, sale |
+| GET | `/api/crew-rates` | any staff; cost only admin, crew manager |
+| GET / PATCH | `/api/staff`, `/api/staff/:id` `{ role, active }` | admin (not yourself) |
+| GET / PUT | `/api/settings`, `/api/settings/company` | read: any staff · change: admin |
 
 ### Try the screens locally
 ```bash
