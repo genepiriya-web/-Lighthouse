@@ -106,3 +106,20 @@ test("master data screens fit the phone; sale checks a flagged customer; store u
   await expect(stock).toHaveValue("12");
   await noSidewaysScroll(page, "catalog item (store)");
 });
+
+test("store view, cockpit sections and job documents fit the phone; documents download", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("lhd-lang", "en"));
+  await as(page, "store");
+  await page.goto("/store"); await expect(page.getByRole("heading", { name: "Store" })).toBeVisible(); await noSidewaysScroll(page, "store");
+  await page.goto("/cockpit"); await expect(page.getByText("Your role can't do this step.")).toBeVisible();
+  await as(page, "admin");
+  await page.goto("/cockpit"); await expect(page.getByRole("heading", { name: "Cockpit" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Overbooked/ })).toBeVisible(); await noSidewaysScroll(page, "cockpit problems");
+  for (const s of ["Money", "Equipment"]) { await page.getByRole("button", { name: s, exact: true }).click(); await noSidewaysScroll(page, `cockpit ${s}`); }
+  await page.goto("/jobs/6900001");
+  await page.getByText("Preview").click();
+  await expect(page.frameLocator("iframe").getByText("QUOTATION / ใบเสนอราคา")).toBeVisible();
+  await noSidewaysScroll(page, "job documents");
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.getByRole("link", { name: "Download .html" }).click()]);
+  expect(dl.suggestedFilename()).toBe("6900001-quotation.html");
+});

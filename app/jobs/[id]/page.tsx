@@ -142,6 +142,8 @@ function Sheet({ id }: { id: string }) {
 
       {["Approve", "Shipped", "Returned"].includes(o.status) && <Store o={o} lines={d.lines} can={!legacy && canStore(role) && o.status !== "Returned"} canRepair={!legacy && canStore(role)} run={run} busy={busy} />}
 
+      <Docs id={id} />
+
       {d.activity.length > 0 && <section className="sec"><h3>{t("activity")}</h3>
         <ul className="log">{[...d.activity].reverse().map((a, i) => { const w = new Date(a.at);
           const text = a.action === "created" ? t("a_created") : a.action === "status" ? t("a_status", { s: a.detail?.to }) : a.action === "status_fix" ? t("a_status_fix", { s: a.detail?.to }) + (a.detail?.reason ? ` — ${a.detail.reason}` : "") : t("a_" + a.action);
@@ -177,6 +179,21 @@ function AddItem({ tt, order, customer, onAdd }: { tt: number; order: Any; custo
     {!crew && hits.length > 0 && <div className="results">{hits.map(p => <div key={p.id} className="res"><span style={{ minWidth: 0 }}><b className="mono">{p.code}</b> {p.desc}<span className="muted small"> · ฿{money(p.price)}{t("perDay")} · {t("stock")} {p.stock}{p.kit?.length ? ` · ${t("kit")} ${p.kit.length}` : ""}</span></span>
       <button className="btn sm" type="button" onClick={() => add(p)}>+</button></div>)}</div>}
   </div>;
+}
+
+/** Quotation / Draft INV / Item list, with or without discount — rendered by the server (lib/docs.js), as on the artifact.
+ *  The preview is a sandboxed frame: no scripts, whatever the old system's templates contain. */
+function Docs({ id }: { id: string }) {
+  const { t } = useApp(); const [kind, setKind] = useState<"quote" | "draft" | "items">("quote"); const [disc, setDisc] = useState(true); const [open, setOpen] = useState(false);
+  const url = `/api/orders/${encodeURIComponent(id)}/document?kind=${kind}&disc=${disc ? 1 : 0}`;
+  return <section className="sec"><h3>{t("docs")}</h3>
+    <div className="row"><div className="seg">{([["quote", "docQuote"], ["draft", "docDraft"], ["items", "docItems"]] as const).map(([k, l]) =>
+      <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}>{t(l)}</button>)}</div>
+      {kind !== "items" && <div className="seg"><button type="button" aria-pressed={disc} onClick={() => setDisc(true)}>{t("withDisc")}</button><button type="button" aria-pressed={!disc} onClick={() => setDisc(false)}>{t("noDisc")}</button></div>}
+      <a className="btn primary" href={url} download>{t("download")} .html</a></div>
+    <details onToggle={e => setOpen((e.target as HTMLDetailsElement).open)}><summary className="small muted" style={{ cursor: "pointer" }}>{t("preview")}</summary>
+      {open && <iframe title={t("preview")} src={`${url}&inline=1`} sandbox="" style={{ width: "100%", height: 520, border: "1px solid var(--line)", borderRadius: 6, background: "#fff" }} />}</details>
+  </section>;
 }
 
 function Store({ o, lines, can, canRepair, run, busy }: { o: Any; lines: Data["lines"]; can: boolean; canRepair: boolean; run: (m: string, p: string, b: Any) => Promise<any>; busy: boolean }) {

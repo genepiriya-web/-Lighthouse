@@ -47,7 +47,7 @@ export function Shell({ children, wide = true }: { children: React.ReactNode; wi
             {me && <button className="btn sm ghost" type="button" onClick={signOut}>{t("signOut")}</button>}
           </div>
         </div>
-        <nav className="tabs pad" role="tablist">{[["/jobs", "jobs"], ["/catalog", "catalog"], ["/customers", "customers"], ["/crew", "crew"], ["/repairs", "repair"],
+        <nav className="tabs pad" role="tablist">{[...(me?.role === "admin" ? [["/cockpit", "cockpit"]] : []), ["/jobs", "jobs"], ["/store", "store"], ["/catalog", "catalog"], ["/customers", "customers"], ["/crew", "crew"], ["/repairs", "repair"],
           ...(me?.role === "admin" ? [["/team", "team"], ["/settings", "settings"]] : [])].map(([href, k]) =>
           <Link key={href} className="tab" role="tab" aria-selected={path.startsWith(href)} href={href}>{t(k)}</Link>)}</nav>
       </header>

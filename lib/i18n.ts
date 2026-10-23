@@ -16,7 +16,7 @@ const extra: Record<Lang, Record<string, string>> = {
     a_prices_approved: "confirmed special prices", a_status_fix: "corrected the status to {s}", a_checkout: "checked out items", a_checkin: "checked in items", reason: "Reason", searchCustName: "Search customer name or code",
     a_repair_sent: "sent damaged items to repair", rateCheck: "listed twice — check rate", otPerHr: "OT {r}/hr", searchCrew: "Search name, nickname or position", flaggedNew: "new — check details",
     markChecked: "Mark as checked", flaggedOnly: "New customers to check", recentJobs: "Recent jobs", addPeopleLater: "Adding people comes with real sign-in (Supabase). Here you can change roles or switch someone off.",
-    activeLbl: "Active", typeLbl: "Type", tookOver: "Edited in v2 — the old system's copy no longer updates it.", viewOnly: "View only",
+    activeLbl: "Active", typeLbl: "Type", tookOver: "Edited in v2 — the old system's copy no longer updates it.", viewOnly: "View only", todayLbl: "Today", cockNoteV2: "Old-system jobs: fix them in the old system; they clear at the next import. v2 jobs: fix them here.",
   },
   th: {
     signInAs: "เข้าใช้งานเป็น (ทดสอบในเครื่องเท่านั้น)", signOut: "ออกจากระบบ", devOnly: "การเข้าใช้งานสำหรับทดสอบ ระบบล็อกอินจริงจะมากับ Supabase",
@@ -28,7 +28,7 @@ const extra: Record<Lang, Record<string, string>> = {
     a_prices_approved: "ยืนยันราคาพิเศษ", a_status_fix: "แก้สถานะเป็น {s}", a_checkout: "เช็กเอาต์", a_checkin: "เช็กอิน", reason: "เหตุผล", searchCustName: "ค้นหาชื่อหรือรหัสลูกค้า",
     a_repair_sent: "ส่งของเสียหายเข้าซ่อม", rateCheck: "มีเรท 2 รายการ — ตรวจสอบ", otPerHr: "OT {r}/ชม.", searchCrew: "ค้นหาชื่อ ชื่อเล่น หรือตำแหน่ง", flaggedNew: "ลูกค้าใหม่ — ตรวจสอบข้อมูล",
     markChecked: "ตรวจสอบแล้ว", flaggedOnly: "ลูกค้าใหม่ที่ต้องตรวจสอบ", recentJobs: "งานล่าสุด", addPeopleLater: "การเพิ่มคนจะมาพร้อมระบบล็อกอินจริง (Supabase) ตอนนี้เปลี่ยนบทบาทหรือปิดการใช้งานได้",
-    activeLbl: "ใช้งาน", typeLbl: "ประเภท", tookOver: "แก้ไขในระบบใหม่แล้ว ข้อมูลจากระบบเดิมจะไม่ทับอีก", viewOnly: "ดูอย่างเดียว",
+    activeLbl: "ใช้งาน", typeLbl: "ประเภท", tookOver: "แก้ไขในระบบใหม่แล้ว ข้อมูลจากระบบเดิมจะไม่ทับอีก", viewOnly: "ดูอย่างเดียว", todayLbl: "วันนี้", cockNoteV2: "งานจากระบบเดิม: แก้ในระบบเดิม แล้วจะหายไปเมื่อนำเข้าครั้งถัดไป งานในระบบใหม่: แก้ที่นี่",
   },
 };
 
