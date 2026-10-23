@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { orderTotals, lineCalc, type Line, type Totals } from "../lib/logic";
+import { orderTotals, lineCalc, type Line, type Totals } from "../../lib/logic";
 
 const T = {
   en: { title: "Price check", lead: "Totals are computed here in your browser and again on the server, using the same rules file.", list: "List", qty: "Qty", days: "Days", disc: "Disc%", sub: "Sub total", vat: "VAT 7%", total: "Total", check: "Check on server", same: "Server agrees", differ: "Server differs", lang: "ไทย" },
