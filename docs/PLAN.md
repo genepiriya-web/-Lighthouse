@@ -298,7 +298,7 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
     - **Exempt, as in the Cockpit:** kit parts, crew/freelance lines, lines with no catalog item, and FOC/standby.
     - **Impact on today's data:** 23 of 209 jobs (11%) have at least one line that would now need an admin: 71 lines below catalog, 1 discount on a non-discountable item, 1 over `maxDisc`. Legacy jobs aren't affected, because they stay in the old system.
     - **Q24:** some "below catalog" lines may be quotes made before a catalog price went up, not discounts. Should a job keep the catalog price from the day it was quoted?
-    - **Q25:** FOC (free of charge) and standby lines are still allowed for sales, as today. FOC is effectively a 100% discount. Should FOC also need an admin?
+    - **Q25, decided by Gene on 23 Oct 2026: no.** Sales can still mark lines FOC or standby, as today. Every change, including FOC, is recorded in the activity log.
 22. **Not built in M3, still on the artifact only:** copy job as new quote; send damaged items to repair from check-in; catalog/customer edits; Cockpit. They come with M4 (screens), unless you want them earlier.
 23. **"Adjust sub total to"** is stored as a fixed ฿ amount (`adjust`), as in the old system. The server accepts the amount. The screen will work it out from the target total, as the artifact does.
 
