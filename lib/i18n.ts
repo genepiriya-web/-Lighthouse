@@ -17,6 +17,10 @@ const extra: Record<Lang, Record<string, string>> = {
     a_repair_sent: "sent damaged items to repair", rateCheck: "listed twice — check rate", otPerHr: "OT {r}/hr", searchCrew: "Search name, nickname or position", flaggedNew: "new — check details",
     markChecked: "Mark as checked", flaggedOnly: "New customers to check", recentJobs: "Recent jobs", addPeopleLater: "Adding people comes with real sign-in (Supabase). Here you can change roles or switch someone off.",
     activeLbl: "Active", typeLbl: "Type", tookOver: "Edited in v2 — the old system's copy no longer updates it.", viewOnly: "View only", todayLbl: "Today", cockNoteV2: "Old-system jobs: fix them in the old system; they clear at the next import. v2 jobs: fix them here.",
+    idsPrivacyV2: "IDs are stored encrypted and only admins can see them. Every time a full ID is shown or sent, it is recorded.", ids_ambiguous: "More than one crew member matches",
+    idsPreview: "Check matches", noIdOnFile: "no ID on file", linkFor: "Who is this for?", linkHours: "Link works for", linkShowFull: "Full ID", linkShowMasked: "Masked ID",
+    linkCreate: "Create link", linkOnce: "Copy this link now — it is shown only once.", linkCopy: "Copy", linkCopied: "Copied", linksSent: "Links sent",
+    lk_active: "active", lk_expired: "expired", lk_revoked: "revoked", lk_used_up: "used up", revoke: "Revoke", views: "views", hours: "{n} h", a_crew_link_created: "sent a crew-ID link", a_crew_link_opened: "crew-ID link opened", a_crew_link_revoked: "revoked a crew-ID link",
   },
   th: {
     signInAs: "เข้าใช้งานเป็น (ทดสอบในเครื่องเท่านั้น)", signOut: "ออกจากระบบ", devOnly: "การเข้าใช้งานสำหรับทดสอบ ระบบล็อกอินจริงจะมากับ Supabase",
@@ -29,6 +33,10 @@ const extra: Record<Lang, Record<string, string>> = {
     a_repair_sent: "ส่งของเสียหายเข้าซ่อม", rateCheck: "มีเรท 2 รายการ — ตรวจสอบ", otPerHr: "OT {r}/ชม.", searchCrew: "ค้นหาชื่อ ชื่อเล่น หรือตำแหน่ง", flaggedNew: "ลูกค้าใหม่ — ตรวจสอบข้อมูล",
     markChecked: "ตรวจสอบแล้ว", flaggedOnly: "ลูกค้าใหม่ที่ต้องตรวจสอบ", recentJobs: "งานล่าสุด", addPeopleLater: "การเพิ่มคนจะมาพร้อมระบบล็อกอินจริง (Supabase) ตอนนี้เปลี่ยนบทบาทหรือปิดการใช้งานได้",
     activeLbl: "ใช้งาน", typeLbl: "ประเภท", tookOver: "แก้ไขในระบบใหม่แล้ว ข้อมูลจากระบบเดิมจะไม่ทับอีก", viewOnly: "ดูอย่างเดียว", todayLbl: "วันนี้", cockNoteV2: "งานจากระบบเดิม: แก้ในระบบเดิม แล้วจะหายไปเมื่อนำเข้าครั้งถัดไป งานในระบบใหม่: แก้ที่นี่",
+    idsPrivacyV2: "เลขบัตรถูกเก็บแบบเข้ารหัส เห็นได้เฉพาะผู้ดูแล ทุกครั้งที่แสดงหรือส่งเลขเต็มจะถูกบันทึก", ids_ambiguous: "ตรงกับช่างมากกว่า 1 คน",
+    idsPreview: "ตรวจสอบรายการ", noIdOnFile: "ยังไม่มีเลขบัตร", linkFor: "ส่งให้ใคร", linkHours: "ลิงก์ใช้ได้", linkShowFull: "เลขเต็ม", linkShowMasked: "เลขแบบซ่อน",
+    linkCreate: "สร้างลิงก์", linkOnce: "คัดลอกลิงก์ตอนนี้ — จะแสดงเพียงครั้งเดียว", linkCopy: "คัดลอก", linkCopied: "คัดลอกแล้ว", linksSent: "ลิงก์ที่ส่งแล้ว",
+    lk_active: "ใช้งานได้", lk_expired: "หมดอายุ", lk_revoked: "ยกเลิกแล้ว", lk_used_up: "เปิดครบแล้ว", revoke: "ยกเลิกลิงก์", views: "ครั้ง", hours: "{n} ชม.", a_crew_link_created: "ส่งลิงก์รายชื่อช่างพร้อมเลขบัตร", a_crew_link_opened: "มีการเปิดลิงก์รายชื่อช่าง", a_crew_link_revoked: "ยกเลิกลิงก์รายชื่อช่าง",
   },
 };
 

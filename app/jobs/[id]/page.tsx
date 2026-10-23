@@ -143,6 +143,7 @@ function Sheet({ id }: { id: string }) {
       {["Approve", "Shipped", "Returned"].includes(o.status) && <Store o={o} lines={d.lines} can={!legacy && canStore(role) && o.status !== "Returned"} canRepair={!legacy && canStore(role)} run={run} busy={busy} />}
 
       <Docs id={id} />
+      {role === "admin" && d.lines.some(l => (l.t === 5 || l.t === 7) && l.crewId) && <CrewLinks id={id} onChange={load} />}
 
       {d.activity.length > 0 && <section className="sec"><h3>{t("activity")}</h3>
         <ul className="log">{[...d.activity].reverse().map((a, i) => { const w = new Date(a.at);
@@ -193,6 +194,35 @@ function Docs({ id }: { id: string }) {
       <a className="btn primary" href={url} download>{t("download")} .html</a></div>
     <details onToggle={e => setOpen((e.target as HTMLDetailsElement).open)}><summary className="small muted" style={{ cursor: "pointer" }}>{t("preview")}</summary>
       {open && <iframe title={t("preview")} src={`${url}&inline=1`} sandbox="" style={{ width: "100%", height: 520, border: "1px solid var(--line)", borderRadius: 6, background: "#fff" }} />}</details>
+  </section>;
+}
+
+/** Admin: send the job's crew list (with national IDs) to a client as an expiring link. The link is shown once. */
+function CrewLinks({ id, onChange }: { id: string; onChange: () => void }) {
+  const { t } = useApp(); const [crew, setCrew] = useState<Any[] | null>(null); const [links, setLinks] = useState<Any[]>([]);
+  const [f, setF] = useState({ recipient: "", hours: 72, show: "full" }); const [made, setMade] = useState<string | null>(null); const [copied, setCopied] = useState(false); const [err, setErr] = useState("");
+  const enc = encodeURIComponent(id);
+  const load = () => { api("GET", `/api/orders/${enc}/crew`).then(r => r.ok && setCrew(r.body.crew)); api("GET", `/api/orders/${enc}/crew-links`).then(r => r.ok && setLinks(r.body.links)); };
+  useEffect(load, [enc]); // eslint-disable-line react-hooks/exhaustive-deps
+  const create = async (e: React.FormEvent) => { e.preventDefault(); setErr(""); setCopied(false);
+    const r = await api("POST", `/api/orders/${enc}/crew-links`, f); if (!r.ok) { setErr(t(r.body?.error ?? "error")); return; }
+    setMade(`${location.origin}${r.body.path}`); setF({ ...f, recipient: "" }); load(); onChange(); };
+  const revoke = async (lid: string) => { await api("POST", `/api/crew-links/${encodeURIComponent(lid)}/revoke`, {}); load(); onChange(); };
+  return <section className="sec"><h3>{t("crewIdsBtn")}</h3>
+    <p className="muted small" style={{ margin: 0 }}>{t("idsPrivacyV2")}</p>
+    {crew && <ul className="log">{crew.map(c => <li key={c.crewId}><b>{c.name}</b> · {c.position} · <span className="muted">{c.dates}</span> · <span className="mono">{c.masked ?? t("noIdOnFile")}</span></li>)}</ul>}
+    <form className="grid" onSubmit={create}>
+      <label className="field span2"><span>{t("linkFor")}</span><input className="inp" required minLength={2} value={f.recipient} onChange={e => setF({ ...f, recipient: e.target.value })} /></label>
+      <label className="field"><span>{t("linkHours")}</span><select className="inp" value={f.hours} onChange={e => setF({ ...f, hours: +e.target.value })}>{[24, 72, 168].map(h => <option key={h} value={h}>{t("hours", { n: h })}</option>)}</select></label>
+      <label className="field"><span>{t("natId")}</span><select className="inp" value={f.show} onChange={e => setF({ ...f, show: e.target.value })}><option value="full">{t("linkShowFull")}</option><option value="masked">{t("linkShowMasked")}</option></select></label>
+      <div className="field" style={{ justifyContent: "flex-end" }}><button className="btn primary" type="submit">{t("linkCreate")}</button></div>
+    </form>
+    {err && <div className="banner bad">{err}</div>}
+    {made && <div className="banner"><div className="small">{t("linkOnce")}</div><div className="row" style={{ marginTop: 4 }}><input className="inp mono" readOnly value={made} onFocus={e => e.target.select()} style={{ flex: 1, minWidth: 0 }} />
+      <button className="btn sm" type="button" onClick={async () => { try { await navigator.clipboard.writeText(made); setCopied(true); } catch { /* clipboard blocked: the field can still be selected */ } }}>{copied ? t("linkCopied") : t("linkCopy")}</button></div></div>}
+    {links.length > 0 && <><b className="small">{t("linksSent")}</b><ul className="log">{links.map(l => <li key={l.id}><b>{l.recipient}</b> · {t(l.show === "full" ? "linkShowFull" : "linkShowMasked")} · {l.views}/{l.maxViews} {t("views")} ·{" "}
+      <span className={l.state === "active" ? "good" : "muted"}>{t("lk_" + l.state)}</span> · <span className="muted">{fmtD(l.expiresAt)}</span>
+      {l.state === "active" && <> <button className="btn sm ghost" type="button" onClick={() => revoke(l.id)}>{t("revoke")}</button></>}</li>)}</ul></>}
   </section>;
 }
 

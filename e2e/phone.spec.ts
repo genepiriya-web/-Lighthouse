@@ -123,3 +123,39 @@ test("store view, cockpit sections and job documents fit the phone; documents do
   const [dl] = await Promise.all([page.waitForEvent("download"), page.getByRole("link", { name: "Download .html" }).click()]);
   expect(dl.suggestedFilename()).toBe("6900001-quotation.html");
 });
+
+test("crew IDs on a phone: admin imports (masked), shows one (logged), sends a link; the client sees IDs only after tapping", async ({ page, browser }) => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { syntheticId } = require("../tests/helpers/fixture");
+  const id: string = syntheticId(777); const fmt = `${id[0]}-${id.slice(1, 5)}-${id.slice(5, 10)}-${id.slice(10, 12)}-${id[12]}`; const masked = `x-xxxx-xxxxx-${id.slice(10, 12)}-${id[12]}`;
+  await page.addInitScript(() => localStorage.setItem("lhd-lang", "en"));
+  await as(page, "admin");
+  await page.goto("/crew/ids");
+  await page.locator("textarea").fill(`G01, ${id}`);
+  await page.getByRole("button", { name: "Check matches" }).click();
+  await expect(page.getByText(masked)).toBeVisible(); await expect(page.getByText(fmt)).toHaveCount(0);
+  await noSidewaysScroll(page, "crew id import");
+  await page.getByRole("button", { name: /^Save 1/ }).click();
+  await page.goto("/crew?q=Test");
+  await expect(page.getByText(masked).first()).toBeVisible();
+  await page.getByRole("button", { name: "Show" }).first().click();
+  await expect(page.getByText(fmt)).toBeVisible();
+  await noSidewaysScroll(page, "crew rates with IDs");
+
+  await page.goto("/jobs/6900001");
+  await page.getByLabel("Who is this for?").fill("Production X location manager");
+  await page.getByRole("button", { name: "Create link" }).click();
+  const url = await page.locator("input[readonly]").inputValue();
+  expect(url).toMatch(/\/share\/crew\/[A-Za-z0-9_-]{40,}$/);
+  await noSidewaysScroll(page, "job crew links");
+
+  const client = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage(); // a stranger: no sign-in
+  await client.goto(url);
+  await expect(client.getByRole("button", { name: /Show crew list/ })).toBeVisible();
+  expect(await client.content()).not.toContain(fmt);
+  await client.getByRole("button", { name: /Show crew list/ }).click();
+  await expect(client.getByText(fmt)).toBeVisible();
+  await noSidewaysScroll(client, "client crew list");
+  await page.reload();
+  await expect(page.getByText(/1\/20 views/)).toBeVisible();
+});
