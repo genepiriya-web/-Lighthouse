@@ -291,10 +291,14 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
 13. Where is `lighthouse-dispatch-handoff.zip`? If it exists, its tests should be merged with these.
 
 ### Found during M3
-21. **Sales can change an item's price and give more discount than the item allows.** Today's spec (`logic.js`) and the artifact both allow it; the Cockpit only flags it afterwards ("Price changed", "Discount breaks rule"). The server copies that behaviour. Options:
-    - (a) Keep as is. Pro: matches today's work. Con: relies on someone reading the Cockpit.
-    - (b) The server refuses a price below the catalog price, or a discount above `maxDisc`, unless an admin does it. Pro: stops mistakes at the source. Con: one more approval step for sales.
-    - (c) Allow it, but require a reason that goes into the activity log. Pro: no blocking, still accountable. Con: reasons can be vague.
+21. **Sales changing prices and discounts.** Gene chose **(b)** on 23 Oct 2026. Only an admin may price an item below its catalog day rate, discount an item marked not discountable, or go over its `maxDisc` (`maxDisc` 0 still means no cap, as in `logic.js`).
+    - **Done:** `lib/rules.ts`, enforced in `PUT /api/orders/:id/lines`. Others get 403 `price_rule`, listing each break.
+    - **Admin overrides** are recorded in the activity log.
+    - **Only new or changed lines are checked,** so a price an admin approved doesn't block sales from editing the rest of the job.
+    - **Exempt, as in the Cockpit:** kit parts, crew/freelance lines, lines with no catalog item, and FOC/standby.
+    - **Impact on today's data:** 23 of 209 jobs (11%) have at least one line that would now need an admin: 71 lines below catalog, 1 discount on a non-discountable item, 1 over `maxDisc`. Legacy jobs aren't affected, because they stay in the old system.
+    - **Q24:** some "below catalog" lines may be quotes made before a catalog price went up, not discounts. Should a job keep the catalog price from the day it was quoted?
+    - **Q25:** FOC (free of charge) and standby lines are still allowed for sales, as today. FOC is effectively a 100% discount. Should FOC also need an admin?
 22. **Not built in M3, still on the artifact only:** copy job as new quote; send damaged items to repair from check-in; catalog/customer edits; Cockpit. They come with M4 (screens), unless you want them earlier.
 23. **"Adjust sub total to"** is stored as a fixed ฿ amount (`adjust`), as in the old system. The server accepts the amount. The screen will work it out from the target total, as the artifact does.
 
