@@ -62,7 +62,7 @@ async function importExport(c,dir,{log=()=>{}}={}){
     counts.kit_parts=await upsert(c,"kit_parts",["parent_id","child_id"],parts);
 
     const cust=X.customers.map(r=>({id:String(r.id),code:str(r.code),name:String(r.name??"").trim()||"(no name)",job_type:str(String(r.type??"").trim()),
-      default_disc:n0(r.disc),billing_addr:str(r.addr),phone:str(r.phone),fax:str(r.fax),source:"legacy",updated_at:new Date().toISOString()}));
+      default_disc:n0(r.disc),billing_addr:str(r.addr),phone:str(r.phone),fax:str(r.fax),source:"legacy",flagged_new:false,flag_note:null,updated_at:new Date().toISOString()}));
     counts.customers=await upsert(c,"customers","id",cust,{guard:"customers.source = 'legacy'"});
     const taxRows=X.customers.filter(r=>str(r.tax)).map(r=>({customer_id:String(r.id),tax_id:String(r.tax).trim()}));
     await c.query("delete from customer_tax_ids where customer_id = any($1::text[]) and not (customer_id = any($2::text[]))",[cust.map(r=>r.id),taxRows.map(r=>r.customer_id)]);
@@ -72,12 +72,14 @@ async function importExport(c,dir,{log=()=>{}}={}){
       description:str(r.desc),enabled:r.enable==null?true:bool(r.enable),updated_at:new Date().toISOString()})));
     const crewIds=X.crew.map(r=>String(r.id));
     await c.query("delete from crew_rates where crew_id = any($1::text[])",[crewIds]); // costs cascade
-    const rates=[], costs=[]; const rseen=new Set();
-    for(const r of X.crew) for(const p of (r.pos||[])){ const k=r.id+":"+p.pid; if(rseen.has(k)){ skipped.crewRateDuplicate=(skipped.crewRateDuplicate||0)+1; continue; } rseen.add(k);
-      rates.push({crew_id:String(r.id),position_id:+p.pid,dept:dept(p.dept),price:n0(p.price),price_ot:n0(p.priceOt),enabled:p.enable==null?true:bool(p.enable)});
-      costs.push({crew_id:String(r.id),position_id:+p.pid,cost:n0(p.cost),cost_ot:n0(p.costOt)}); }
-    counts.crew_rates=await upsert(c,"crew_rates",["crew_id","position_id"],rates);
-    counts.crew_rate_costs=await upsert(c,"crew_rate_costs",["crew_id","position_id"],costs);
+    // Every rate row is kept (Gene, 23 Oct). The same position listed twice gets rate_no 1, 2, ... and needs_review.
+    const rates=[], costs=[];
+    for(const r of X.crew){ const per={}; for(const p of (r.pos||[])) per[p.pid]=(per[p.pid]||0)+1; const no={};
+      for(const p of (r.pos||[])){ const n=no[p.pid]=(no[p.pid]||0)+1; const dup=per[p.pid]>1; if(dup&&n===1) counts.crew_rates_needing_review=(counts.crew_rates_needing_review||0)+per[p.pid];
+        rates.push({crew_id:String(r.id),position_id:+p.pid,rate_no:n,needs_review:dup,dept:dept(p.dept),price:n0(p.price),price_ot:n0(p.priceOt),enabled:p.enable==null?true:bool(p.enable)});
+        costs.push({crew_id:String(r.id),position_id:+p.pid,rate_no:n,cost:n0(p.cost),cost_ot:n0(p.costOt)}); } }
+    counts.crew_rates=await upsert(c,"crew_rates",["crew_id","position_id","rate_no"],rates);
+    counts.crew_rate_costs=await upsert(c,"crew_rate_costs",["crew_id","position_id","rate_no"],costs);
 
     const settings=["remarks","footers","sales"].filter(k=>X.config[k]).map(k=>({key:k,value:X.config[k],updated_at:new Date().toISOString()}));
     if(X.company) settings.push({key:"company",value:X.company,updated_at:new Date().toISOString()});
@@ -87,10 +89,18 @@ async function importExport(c,dir,{log=()=>{}}={}){
       await c.query("insert into order_counters(be_year,seq) values ($1,$2) on conflict (be_year) do update set seq = greatest(order_counters.seq, excluded.seq)",[+X.counter.be,+X.counter.seq]);
       counts.order_counters=1; }
 
+    // Jobs pointing at a customer missing from the customer list: create that customer from the job's details and flag it
+    // as new (Gene, 23 Oct). Insert-only, so a person's later edits or un-flagging are never overwritten.
+    let custIds=new Set((await c.query("select id from customers")).rows.map(r=>r.id));
+    const missing=new Map();
+    for(const o of X.orders){ const cid=o.customerId==null?null:String(o.customerId); if(cid&&!custIds.has(cid)&&!missing.has(cid))
+      missing.set(cid,{id:cid,code:null,name:String(o.customerName??"").trim()||"(no name)",job_type:str(o.jobType),default_disc:0,billing_addr:str(o.billing),phone:str(o.phone),fax:str(o.fax),
+        source:"legacy",flagged_new:true,flag_note:`Created by import: job ${o.no} refers to customer ${cid}, which is not in the old system's customer list. Check the details.`,updated_at:new Date().toISOString()}); }
+    if(missing.size){ const r=await c.query(`insert into customers select * from json_populate_recordset(null::customers,$1) on conflict (id) do nothing`,[JSON.stringify([...missing.values()])]);
+      counts.customers_flagged_new=r.rowCount; custIds=new Set((await c.query("select id from customers")).rows.map(r=>r.id)); }
+
     // Orders: legacy only. A v2 order with the same id is left alone and reported.
-    const custIds=new Set((await c.query("select id from customers")).rows.map(r=>r.id));
     const orders=X.orders.map(o=>{ const cid=o.customerId==null?null:String(o.customerId);
-      if(cid&&!custIds.has(cid)) skipped.orderCustomerMissing=(skipped.orderCustomerMissing||0)+1;
       return {id:String(o.id),no:String(o.no),owner:"legacy",legacy_id:str(o.legacyId),status:o.status,customer_id:cid&&custIds.has(cid)?cid:null,customer_name:str(o.customerName),
         job_title:str(o.jobTitle),job_type:str(o.jobType),dept:num(o.dept),billing:str(o.billing),phone:str(o.phone),fax:str(o.fax),contact:str(o.contact),contact_phone:str(o.contactPhone),
         dop:str(o.dop),pm:str(o.pm),gaffer:str(o.gaffer),key_grip:str(o.keyGrip),note:str(o.note),sale:str(o.sale),rent_type:o.rentType==="Weekly"?"Weekly":"Daily",dpw:num(o.dpw),

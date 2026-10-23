@@ -28,7 +28,8 @@ function writeFixture(dir){
   w("kits/k0.json",{kits:{3:[[2,4,150],[1,1],[999,1]]}});
   w("customers/k0.json",{rows:[{id:10,code:"C10",name:"Synthetic Films",type:"TVC",disc:20,addr:"1 Test Rd",phone:"000",fax:"",tax:syntheticId(1)},
     {id:11,code:"C11",name:"Example Studio",type:"FILM ",disc:0,addr:"",phone:"",fax:"",tax:""}]});
-  w("crew/r0.json",{rows:[{id:500,code:"G01",first:"Test",last:"Gaffer",nick:"T",desc:"",enable:1,pos:[{pid:7,dept:"LIGHTING",price:3000,priceOt:400,cost:2000,costOt:300,enable:1,code:"GF",name:"Gaffer"}]}]});
+  w("crew/r0.json",{rows:[{id:500,code:"G01",first:"Test",last:"Gaffer",nick:"T",desc:"",enable:1,pos:[{pid:7,dept:"LIGHTING",price:3000,priceOt:400,cost:2000,costOt:300,enable:1,code:"GF",name:"Gaffer"},
+    {pid:8,dept:"GRIP",price:2500,priceOt:300,cost:1800,costOt:250,enable:1,code:"KG",name:"Key grip"},{pid:8,dept:"GRIP",price:1,priceOt:1,cost:1,costOt:1,enable:1,code:"KG",name:"Key grip"}]}]});
   w("meta/config.json",{positions:[{id:7,code:"GF",name:"Gaffer",dept:1,sort:1.5}],remarks:[{id:"r1",name:"Std",html:"<p>x</p>",def:1}],footers:[],sales:[{code:"S1",nick:"Aom",name:"Sale One"}],staff:{}});
   w("counters/orders.json",{be:69,seq:9000});
   const order=(id,status,extra)=>({id,no:id,legacyId:"L"+id,status,customerId:10,customerName:"Synthetic Films",jobTitle:"TVC "+id,ship:"2026-11-01",ret:"2026-11-02",
@@ -75,9 +76,24 @@ test("importer: synthetic export loads, and a second run leaves identical rows",
   const r2=await importExport(c,fixture); const n2=await domainCounts(); const f2=await fingerprint();
   assert.deepEqual(n2,n1); assert.deepEqual(f2,f1); assert.deepEqual(r2.skipped,r1.skipped);
   assert.equal(n1.products,4); assert.equal(n1.orders,2); assert.equal(n1.order_lines,4); assert.equal(n1.kit_parts,2); assert.equal(n1.activity,2);
-  assert.equal(r1.skipped.kitPartUnknownProduct,1); assert.equal(r1.skipped.orderCustomerMissing,1);
+  assert.equal(r1.skipped.kitPartUnknownProduct,1);
   const p=(await c.query("select is_fuel_hour, sort from products where id=4")).rows[0]; assert.equal(p.is_fuel_hour,true); assert.equal(+p.sort,3);
-  assert.equal((await c.query("select dept from crew_rates where crew_id='500'")).rows[0].dept,1);
+  assert.equal((await c.query("select dept from crew_rates where crew_id='500' and position_id=7")).rows[0].dept,1);
+});
+
+test("importer: a crew member's repeated position keeps every rate, marked for review (Gene, 23 Oct)",{skip},async()=>{
+  const r=(await c.query("select position_id, rate_no, needs_review, price::float8 from crew_rates where crew_id='500' order by position_id, rate_no")).rows;
+  assert.deepEqual(r,[{position_id:7,rate_no:1,needs_review:false,price:3000},{position_id:8,rate_no:1,needs_review:true,price:2500},{position_id:8,rate_no:2,needs_review:true,price:1}]);
+  assert.equal((await c.query("select count(*) from crew_rate_costs where crew_id='500'")).rows[0].count,"3");
+});
+
+test("importer: a job's missing customer is created from the job and flagged new; re-import never re-flags it (Gene, 23 Oct)",{skip},async()=>{
+  const cu=(await c.query("select name, flagged_new, flag_note from customers where id='404'")).rows[0];
+  assert.equal(cu.name,"Synthetic Films"); assert.equal(cu.flagged_new,true); assert.match(cu.flag_note,/6900002/);
+  assert.equal((await c.query("select customer_id from orders where id='6900002'")).rows[0].customer_id,"404");
+  await c.query("update customers set flagged_new=false, name='Checked Name' where id='404'");   // a person checks it
+  const r=await importExport(c,fixture); assert.equal(r.counts.customers_flagged_new,undefined);
+  assert.deepEqual((await c.query("select name, flagged_new from customers where id='404'")).rows[0],{name:"Checked Name",flagged_new:false});
 });
 
 test("importer: prices read back from the database still give the old-system totals",{skip},async()=>{
@@ -109,9 +125,11 @@ test("RLS: anonymous gets nothing; signed-in non-staff and inactive staff see ze
 
 test("RLS: customer tax IDs only for admin/sale/accounting; crew costs only for admin/crew",{skip},async()=>{
   const cnt=(role,t)=>as("authenticated",uid[role],async()=>(await c.query(`select 1 from ${t}`)).rowCount);
-  for(const r of ["admin","sale","accounting"]) assert.equal(await cnt(r,"customer_tax_ids"),1);
+  const all=async t=>+(await c.query(`select count(*) from ${t}`)).rows[0].count;   // as the owner, ignoring RLS
+  const taxN=await all("customer_tax_ids"), costN=await all("crew_rate_costs"); assert.ok(taxN>0&&costN>0);
+  for(const r of ["admin","sale","accounting"]) assert.equal(await cnt(r,"customer_tax_ids"),taxN);
   for(const r of ["store","crew"]) assert.equal(await cnt(r,"customer_tax_ids"),0);
-  for(const r of ["admin","crew"]) assert.equal(await cnt(r,"crew_rate_costs"),1);
+  for(const r of ["admin","crew"]) assert.equal(await cnt(r,"crew_rate_costs"),costN);
   for(const r of ["sale","store","accounting"]) assert.equal(await cnt(r,"crew_rate_costs"),0);
   for(const r of ROLES) assert.ok(denied(await cnt(r,"order_counters")),`${r} read order_counters`);
 });
