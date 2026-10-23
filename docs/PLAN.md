@@ -308,7 +308,7 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
 29. **Found during slice 2:**
     - **Positions:** 17 positions used by 553 crew rates were missing from the copied position list (probably retired ones). The importer now adds them from the crew records, so every rate shows its position.
     - **My earlier phone-width checks were weaker than reported.** `overflow-x: hidden` on the page clips anything too wide instead of scrolling, so measuring the page width always passed. The browser test now checks that no element runs past the screen edge, and it was proven to catch a deliberately too-wide layout. The real-data screens pass the stricter check.
-30. **Found during slice 3 (what the artifact does, copied as-is; please confirm):**
+30. **Found during slice 3. Gene, 23 Oct 2026: keep as built** (accounting doesn't see crew cost; store can edit catalog prices; crew rates stay view only):
     - **Accounting and crew cost.** The artifact showed crew cost to accounting as well. Your Q15 answer covered admin and the crew manager, so v2 hides cost from accounting. Should accounting see it, for payroll?
     - **Store can change catalog prices and discount limits.** That changes what counts as a "special price" for the CEO check. Should price, discountable and max discount be admin-only?
     - **Crew rates are view-only,** as on the artifact (the role guide says the crew manager handles crew rates, but the artifact never let anyone edit them). Should the crew manager be able to edit rates in v2?
