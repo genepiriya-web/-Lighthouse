@@ -1,0 +1,14 @@
+{
+  "name": "lighthouse-dispatch",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Rental workflow app for Lighthouse Film Service (v2, single-page Claude Artifact)",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "test": "node --test tests/logic.test.js tests/parity.test.js",
+    "test:ui": "node --test tests/ui.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "26.1.0"
+  }
+}

@@ -1,0 +1,755 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Lighthouse Dispatch</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+<style>
+/* Layout: sticky app bar + tab strip over a wide working column; a full-height sheet holds each job. Gaffer-tape labels carry status. */
+:root{
+  --bg:#ECEFF2; --surface:#FFFFFF; --sunk:#E3E7EC; --ink:#141920; --muted:#566170; --line:#D2D8DF;
+  --accent:#F0B323; --accent-ink:#1B1606; --focus:#2F6FD6;
+  --danger:#B8342A; --ok:#2B8452; --warn:#9A5A00; --scrim:rgba(14,18,24,.45);
+  --on-light:#1B1606; --on-dark:#FFFFFF;
+  --s-quote:#8793A3; --s-order:#2F6FD6; --s-approve:#1A9A8B; --s-shipped:#E0552A; --s-returned:#7B58CF; --s-draft:#2B8452; --s-cancel:#A2A8B0;
+  --f-display:"Barlow Condensed","IBM Plex Sans Thai",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans Thai",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0F1216; --surface:#181D23; --sunk:#0B0E11; --ink:#E5E8EC; --muted:#97A1AD; --line:#29313A;
+  --accent:#F2B935; --focus:#6FA0F2; --danger:#F0695C; --ok:#4FC185; --warn:#E8A53E; --scrim:rgba(0,0,0,.6);
+  --s-quote:#6C7888; --s-order:#4A86E8; --s-approve:#22A898; --s-cancel:#5B626B; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0F1216; --surface:#181D23; --sunk:#0B0E11; --ink:#E5E8EC; --muted:#97A1AD; --line:#29313A;
+  --accent:#F2B935; --focus:#6FA0F2; --danger:#F0695C; --ok:#4FC185; --warn:#E8A53E; --scrim:rgba(0,0,0,.6);
+  --s-quote:#6C7888; --s-order:#4A86E8; --s-approve:#22A898; --s-cancel:#5B626B; color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--surface)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+h1,h2,h3{margin:0;text-wrap:balance}
+.mono{font-family:var(--f-mono);font-size:.88em}
+.muted{color:var(--muted)} .num{font-variant-numeric:tabular-nums} .bad{color:var(--danger)} .good{color:var(--ok)} .warn{color:var(--warn)}
+.small{font-size:12px}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+.pad{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.bar-in{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:8px;max-width:1400px;margin:0 auto}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.mark{width:26px;height:16px;background:var(--accent);clip-path:polygon(3px 0,100% 0,calc(100% - 3px) 50%,100% 100%,0 100%,3px 50%,0 0);flex:none;transform:rotate(-6deg)}
+.brand-name{font-family:var(--f-display);font-weight:700;font-size:20px;letter-spacing:.08em;line-height:1}
+.brand-sub{font-family:var(--f-display);font-weight:500;font-size:18px;color:var(--muted);letter-spacing:.04em;line-height:1}
+.bar-right{display:flex;align-items:center;gap:8px}
+.who img{width:22px;height:22px;border-radius:50%;vertical-align:middle}
+.tabs{display:flex;gap:2px;overflow-x:auto;max-width:1400px;margin:0 auto;scrollbar-width:none}
+.tab{appearance:none;border:0;background:none;padding:6px 12px 9px;font-family:var(--f-display);font-weight:600;font-size:16px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.wrap{max-width:1400px;margin:0 auto;padding-block:16px 48px;display:flex;flex-direction:column;gap:12px}
+.view-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.view-head h1{font-family:var(--f-display);font-weight:700;font-size:32px;letter-spacing:.02em;line-height:1;text-transform:uppercase}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{appearance:none;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:7px 12px;font-weight:500;cursor:pointer;line-height:1.3;display:inline-flex;align-items:center;gap:6px;min-height:36px;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.danger{color:var(--danger);border-color:var(--danger);background:transparent}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn.sm{min-height:28px;padding:3px 9px;font-size:12px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.field{display:flex;flex-direction:column;gap:3px;min-width:0}
+.field>span{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.inp{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:6px 9px;min-height:34px}
+.inp[readonly],.inp:disabled{background:var(--sunk);color:var(--muted)}
+textarea.inp{min-height:70px;resize:vertical}
+.inp:focus{border-color:var(--focus);outline:none}
+.inp.cell{min-height:28px;padding:2px 6px;text-align:right;width:72px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.span2{grid-column:span 2} .spanall{grid-column:1/-1}
+@media (max-width:520px){ .span2{grid-column:1/-1} }
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.chip{appearance:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 11px;font-size:13px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.chip .dot{width:8px;height:8px;border-radius:2px;background:var(--tc,var(--muted))}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip .n{font-family:var(--f-mono);font-size:11px;opacity:.75}
+.tape{display:inline-block;font-family:var(--f-display);font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase;line-height:1.25;padding:2px 10px 1px;background:var(--tc);color:var(--tf,var(--on-dark));clip-path:polygon(3px 0,100% 0,calc(100% - 3px) 50%,100% 100%,0 100%,3px 50%,0 0);white-space:nowrap}
+.st-Quote{--tc:var(--s-quote)} .st-Order{--tc:var(--s-order)} .st-Approve{--tc:var(--s-approve)} .st-Shipped{--tc:var(--s-shipped)} .st-Returned{--tc:var(--s-returned)} .st-Draft{--tc:var(--s-draft)} .st-Cancel{--tc:var(--s-cancel)}
+.tag{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:1px dashed var(--muted);color:var(--muted);border-radius:4px;padding:0 5px;white-space:nowrap}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface);position:sticky;top:0}
+td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr.click{cursor:pointer} tbody tr.click:hover td{background:var(--sunk)}
+td.r,th.r{text-align:right} td.c,th.c{text-align:center}
+tr.child td{color:var(--muted);font-size:12px} tr.child td:nth-child(2){padding-left:26px}
+tr.bad td{background:color-mix(in srgb,var(--danger) 8%,transparent)}
+.ellip{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty{padding:26px 18px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center;border:1px dashed var(--line);border-radius:8px}
+.empty h2{font-family:var(--f-display);font-size:22px;text-transform:uppercase;letter-spacing:.04em}
+.empty p{margin:0;max-width:52ch;color:var(--muted)}
+.banner{padding:9px 13px;border-radius:6px;background:var(--sunk);font-size:13px;border-left:4px solid var(--accent)}
+.banner.bad{border-left-color:var(--danger);color:var(--ink)}
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.stat{appearance:none;text-align:left;background:var(--surface);border:1px solid var(--line);border-top:4px solid var(--tc,var(--line));border-radius:6px;padding:8px 10px;cursor:pointer}
+.stat b{display:block;font-family:var(--f-display);font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.stat span{font-size:12px;color:var(--muted)}
+.stat[aria-pressed="true"]{outline:2px solid var(--ink)}
+#sheetWrap{position:fixed;inset:0;z-index:40}
+.scrim{position:absolute;inset:0;background:var(--scrim)}
+.sheet{position:absolute;top:0;right:0;bottom:0;width:min(1180px,100%);background:var(--bg);overflow-y:auto;overscroll-behavior:contain;padding-top:env(safe-area-inset-top,0px);padding-bottom:calc(40px + env(safe-area-inset-bottom,0px));box-shadow:-12px 0 32px rgba(0,0,0,.2)}
+.sheet.narrow{width:min(600px,100%)}
+.sheet-in{padding-block:14px;display:flex;flex-direction:column;gap:12px}
+.sheet-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.sheet-head h2{font-family:var(--f-display);font-weight:700;font-size:28px;line-height:1.05;overflow-wrap:anywhere}
+.sec{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.sec h3{font-family:var(--f-display);font-weight:600;font-size:17px;letter-spacing:.06em;text-transform:uppercase;display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
+.sec h3 small{font-family:var(--f-body);font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}
+.ttabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.ttab{appearance:none;border:0;background:none;padding:6px 10px;font-family:var(--f-display);font-weight:600;font-size:15px;letter-spacing:.04em;color:var(--muted);border-bottom:3px solid transparent;cursor:pointer}
+.ttab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.ttab .n{font-family:var(--f-mono);font-size:11px;margin-left:3px}
+.totals{display:grid;grid-template-columns:1fr auto;gap:3px 14px;font-size:13px;max-width:380px;margin-left:auto;width:100%}
+.totals .big{font-family:var(--f-display);font-size:22px;font-weight:700}
+.totals .rule{grid-column:1/-1;border-top:2px solid var(--ink);margin:3px 0}
+.cols2{display:grid;grid-template-columns:1fr;gap:12px}
+@media (min-width:900px){ .cols2{grid-template-columns:1fr 1fr} }
+.results{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:6px;max-height:300px;overflow-y:auto}
+.res{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 10px;border-top:1px solid var(--line)}
+.res:first-child{border-top:0}
+.stepper{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(6,minmax(70px,1fr));gap:3px;overflow-x:auto}
+.stepper li{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted)}
+.stepper li::before{content:"";height:6px;border-radius:2px;background:var(--line)}
+.stepper li.done::before{background:var(--muted)} .stepper li.now{color:var(--ink);font-weight:600} .stepper li.now::before{background:var(--tc)}
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;font-size:12px}
+.log time{color:var(--muted);font-family:var(--f-mono);margin-right:6px}
+.doc{background:#fff;color:#111;border:1px solid var(--line);border-radius:6px;padding:20px;overflow-x:auto}
+.person{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.person:first-child{border-top:0}
+.person img{width:28px;height:28px;border-radius:50%;flex:none}
+.person .nm{flex:1;min-width:0;overflow-wrap:anywhere}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{appearance:none;border:0;border-left:1px solid var(--line);background:var(--surface);padding:4px 10px;font-size:13px;cursor:pointer}
+.seg button:first-child{border-left:0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:60;max-width:calc(100% - 32px)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (prefers-reduced-motion: reduce){ #toast{transition:none} }
+</style>
+
+<header class="bar">
+  <div class="bar-in pad">
+    <div class="brand"><span class="mark" aria-hidden="true"></span><span class="brand-name">LIGHTHOUSE</span><span class="brand-sub">Dispatch</span></div>
+    <div class="bar-right"><span class="who" id="who"></span><button class="btn sm ghost" id="langBtn" data-act="lang" type="button">ไทย</button></div>
+  </div>
+  <nav class="tabs pad" id="tabs" role="tablist"></nav>
+</header>
+<main class="wrap pad" id="main"><div id="viewHead"></div><div id="viewBody"><div class="empty"><p>Loading…</p></div></div></main>
+<div id="sheetWrap" hidden><div class="scrim" data-act="close"></div><aside class="sheet" id="sheet" role="dialog" aria-modal="true"></aside></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/*LOGIC-START*//*@@LOGIC@@*//*LOGIC-END*/
+
+/* ================= text ================= */
+const I18N={en:{
+idsImport:"Import national IDs",idsCount:"{n} with national ID",natId:"National ID",show:"Show",hide:"Hide",idsHelp:"Paste or upload one crew per line: crew code (or the old system's crew number, or full name), then the 13-digit ID. Each ID is checked with the Thai checksum before saving.",idsKey:"Code / name",ids_nomatch:"No crew matches",ids_checksum:"ID fails checksum",ids_cols:"Needs 2 columns",idsSave:"Save {n} IDs",idsSaved:"Saved {n} IDs",idsPrivacy:"Stored in a locked area only the owner and Editors of this page can read. Other users can't load it.",crewIdsBtn:"Crew list for client (with IDs)",noCrewOnJob:"No named crew on this job.",a_crewIds:"downloaded the crew ID list",cockpit:"Cockpit",dataAsOf:"Data as of",refresh:"Refresh",k_problems:"Problems",k_money:"Money",k_assets:"Equipment",k_type:"Type",k_detail:"What's wrong",perDay:"/day",f_all:"All",noProblems:"No problems found",
+pk_overbook:"Overbooked",pk_overdue:"Overdue return",pk_crew:"Crew double-booked",pk_discount:"Discount breaks rule",pk_mismatch:"Total doesn't match lines",pk_stale:"Stuck open",pk_missing:"Missing details",pk_price:"Price changed",pk_adjust:"Total adjusted",
+d_overbook:"{code} {desc}: {need} booked, {stock} in stock ({from}–{to})",d_overdue:"Due back {d}, {n} days late",d_stale:"Still {s} since {d} ({n} days)",d_mismatch:"Old system says ฿{a}, its lines add up to ฿{b}",d_adjust:"Adjusted by ฿{a}",d_missing:"Missing: {m}",d_crew:"{n} on two jobs {from}–{to}",
+cockNote:"Checks run on the latest copy of the old system. Fix problems there; they clear at the next sync.",jobsN:"jobs",exVat:"Amounts before VAT, from open jobs.",m_quotes:"Quotes (upcoming)",m_confirmed:"Confirmed",m_onrent:"Out on rent",m_tobill:"Returned, to bill",m_bySale:"By salesperson",m_bySaleNote:"Open jobs excluding quotes",m_net:"Net",m_avgDisc:"Avg discount",m_topCust:"Top customers (open jobs)",
+a_top:"Top earning equipment",a_topNote:"Confirmed open jobs",a_sub:"Subrent most charged",a_subNote:"Items you rent in for customers",a_idle:"Idle high-value equipment",a_idleNote:"{n} equipment items aren't on any open job",jobs:"Jobs",store:"Store",catalog:"Catalog",customers:"Customers",crew:"Crew rates",repair:"Repairs",team:"Team",settings:"Settings",loading:"Loading…",
+r_admin:"Admin",r_sale:"Sales",r_store:"Store",r_accounting:"Accounting",r_crew:"Crew manager",r_none:"View only",
+newOrder:"+ Create order",search:"Search",searchJobs:"Order no., job title, customer or DOP",openOnly:"Open jobs",closedLoad:"Show closed jobs",closedNote:"Closed jobs (Draft INV and Cancel) load on request.",
+c_no:"Order",c_title:"Job title",c_cust:"Customer",c_jt:"Job type",c_dept:"Dept",c_ship:"Ship",c_ret:"Return",c_status:"Status",c_dop:"DOP",c_type:"Type",c_sub:"Sub total",
+emptyJobsT:"No jobs yet",emptyJobsB:"Create an order, or ask Claude to bring over the open jobs from the old system.",noMatch:"Nothing matches.",legacy:"From old system",
+orderT:"Order",newOrderT:"Create order",created:"Created",updated:"Updated",rev:"Revision",
+h_dop:"DOP",h_type:"Type",h_dpw:"Days per week",h_cust:"Customer",h_title:"Job title",h_jt:"Job type",h_dept:"Department",h_bill:"Billing address",h_phone:"Phone",h_fax:"Fax",h_ship:"Ship date",h_ret:"Return date",h_us:"Usage start",h_ue:"Usage end",h_contact:"Customer contact",h_cphone:"Tel",h_sale:"Salesperson",h_tax:"Tax",h_footer:"Footer",h_remark:"Remark",h_pm:"Production manager (PM)",h_gf:"Gaffer (GF)",h_kg:"Key grip (KG)",h_note:"Internal note",
+pick:"Please select",create:"Create",save:"Save",saved:"Saved",close:"Close",cancel:"Cancel",
+needCust:"Choose a customer.",needTitle:"Add a job title.",badDates:"Return date must be on or after the ship date.",
+items:"Items",addItem:"Add item",searchItems:"Search code or description",onlyDept:"Only this department",
+i_code:"Code",i_desc:"Description",i_list:"List price",i_qty:"Qty",i_days:"Day(s)",i_amt:"Amount",i_disc:"Disc%",i_total:"Total",i_use:"Usage date",i_flags:"FOC / Standby",i_ot:"OT hrs",i_otr:"OT rate",i_pos:"Position",i_person:"Crew",
+foc:"FOC",sb:"Standby",remove:"Remove",kitOf:"part of",free:"free",ofStock:"of",notStocked:"not stock-tracked",onHold:"Also on Quote {c}",shortBy:"Short by {n}",
+t_list:"List",t_disc:"Discount",t_sub:"Sub total",t_extra:"Extra discount",t_ins:"Insurance fee",t_vat:"VAT 7%",t_total:"Total",t_adj:"Adjustment",adjustTo:"Adjust sub total to",t_grand:"Grand total",t_type:"Total {t}",extraDisc:"Extra discount %",insurance:"Insurance fee (฿)",
+lockedBy:"Someone else is editing these items. You can edit after {t}.",editing:"You are editing. Others see these items as locked.",readOnlyItems:"Items can't be changed at this stage.",
+st_next:"Next step",moveTo:"Move to {s}",cancelJob:"Cancel job",cancelSure:"Tap again to cancel",fixStatus:"Correct status (admin)",copyJob:"Copy as new quote",copied:"Copied as a new quote",
+rFlow:"Not a valid next step.",rRole:"Your role can't do this step.",rNeedCust:"Choose a customer first.",rNeedDates:"Set ship and return dates first.",rNeedItems:"Add at least one item.",rClash:"Some items are short on these dates.",rCheckOut:"Check out every stocked item first.",rCheckIn:"Check in every item (or mark lost) first.",rNoCancel:"Shipped jobs can't be cancelled.",
+checkout:"Check out",checkin:"Check in",outQ:"Out",inQ:"In",dmg:"Damaged",lost:"Lost",allOut:"All out",allIn:"All back OK",sendRepair:"Send damaged to repair",sentRepair:"Repair tickets created",
+docs:"Documents",docQuote:"Quotation",docDraft:"Draft INV",docItems:"Item list",withDisc:"With discount",noDisc:"Without discount",download:"Download",preview:"Preview",dlUnavailable:"Downloading isn't available in this view.",dlDeclined:"Download cancelled.",
+activity:"Activity",a_created:"created the order",a_status:"moved it to {s}",a_items:"changed items",a_header:"changed details",a_out:"checked out items",a_in:"checked in items",
+storeT:"Store",outToday:"Going out",backToday:"Coming back",overdue:"Overdue",next7:"Next 7 days",nothing:"Nothing scheduled.",
+catT:"Catalog",searchCat:"Search code or description",allTypes:"All types",allDepts:"All departments",stock:"Stock",price:"Day rate",maxDisc:"Max disc%",discountable:"Discountable",serial:"Serial",kit:"Package parts",addPart:"Add part",ratio:"per unit",showMore:"Show {n} more",itemEdit:"Edit item",itemNew:"New item",yes:"Yes",no:"No",edited:"edited here",
+custT:"Customers",searchCust:"Search name, code or tax ID",custNew:"New customer",custEdit:"Edit customer",c_code:"Code",c_name:"Name",c_tax:"Tax ID",c_type:"Type",c_disc:"Default disc%",c_addr:"Billing address",c_phone:"Phone",
+crewT:"Crew rates",searchCrew:"Search name, code or position",p_price:"Rate / 1Q",p_ot:"OT / hr",p_cost:"Cost",
+repT:"Repairs",rp_wait:"Waiting for repair",rp_doing:"Repairing",rp_done:"Completed",rp_lost:"Lost",rp_from:"From order",noRepairs:"No repair tickets.",
+teamHelp:"The owner and Editors of this page are always Admin. Give everyone else a role. Each person also needs access to this page through Share.",addPerson:"Add a person",searchPeople:"Search by name",add:"Add",members:"Members",noMembers:"No one has a role yet.",alwaysAdmin:"Admin (owner or Editor)",noSearch:"No one found.",
+roleGuide:"What each role can do",g_admin:"Everything, including status corrections and settings.",g_sale:"Quotes and orders, items, approve, cancel.",g_store:"Check out, ship, check in, repairs, catalog stock.",g_accounting:"Returned → Draft INV, insurance and extra discount.",g_crew:"Crew rates.",
+setT:"Settings",company:"Company name on documents",companyAddr:"Company address",companyTax:"Company tax ID",remarks:"Remark templates",footers:"Footer templates",
+noRole:"You can view but not change anything yet. Ask an admin for a role.",offline:"The shared database isn't reachable here. Open this page in Claude while signed in.",
+errPerm:"That change was refused. You may not have edit access.",errQuota:"Storage is full.",errBusy:"Too many changes at once. Try again in a moment.",errGeneric:"Couldn't save. Check your connection and try again.",
+you:"You",someone:"Someone",days:"days",items_n:"{n} items",assumed:"Rule to confirm"},
+th:{idsImport:"นำเข้าเลขบัตรประชาชน",idsCount:"มีเลขบัตร {n} คน",natId:"เลขบัตรประชาชน",show:"แสดง",hide:"ซ่อน",idsHelp:"วางหรืออัปโหลด บรรทัดละ 1 คน: รหัสช่าง (หรือเลขช่างในระบบเดิม หรือชื่อเต็ม) ตามด้วยเลขบัตร 13 หลัก ระบบจะตรวจเลขด้วยหลักตรวจสอบก่อนบันทึก",idsKey:"รหัส / ชื่อ",ids_nomatch:"ไม่พบช่าง",ids_checksum:"เลขบัตรไม่ถูกต้อง",ids_cols:"ต้องมี 2 คอลัมน์",idsSave:"บันทึก {n} รายการ",idsSaved:"บันทึกแล้ว {n} รายการ",idsPrivacy:"เก็บในส่วนล็อกที่อ่านได้เฉพาะเจ้าของและ Editor ของหน้านี้ ผู้ใช้อื่นโหลดไม่ได้",crewIdsBtn:"รายชื่อช่างสำหรับลูกค้า (พร้อมเลขบัตร)",noCrewOnJob:"งานนี้ไม่มีชื่อช่าง",a_crewIds:"ดาวน์โหลดรายชื่อช่างพร้อมเลขบัตร",cockpit:"ห้องควบคุม",dataAsOf:"ข้อมูล ณ",refresh:"รีเฟรช",k_problems:"ปัญหา",k_money:"รายได้",k_assets:"อุปกรณ์",k_type:"ประเภท",k_detail:"ปัญหาคืออะไร",perDay:"/วัน",f_all:"ทั้งหมด",noProblems:"ไม่พบปัญหา",
+pk_overbook:"จองเกินสต็อก",pk_overdue:"คืนของเลยกำหนด",pk_crew:"ช่างชนคิว",pk_discount:"ส่วนลดผิดเงื่อนไข",pk_mismatch:"ยอดไม่ตรงกับรายการ",pk_stale:"ค้างไม่ปิดงาน",pk_missing:"ข้อมูลไม่ครบ",pk_price:"แก้ราคาจากราคากลาง",pk_adjust:"มีการปรับยอด",
+d_overbook:"{code} {desc}: จอง {need} มีสต็อก {stock} ({from}–{to})",d_overdue:"ครบกำหนดคืน {d} เลยมา {n} วัน",d_stale:"ยังเป็น {s} ตั้งแต่ {d} ({n} วัน)",d_mismatch:"ระบบเดิมบอก ฿{a} แต่รายการรวมได้ ฿{b}",d_adjust:"ปรับยอด ฿{a}",d_missing:"ขาด: {m}",d_crew:"{n} อยู่ 2 งาน {from}–{to}",
+cockNote:"ตรวจจากสำเนาล่าสุดของระบบเดิม แก้ไขในระบบเดิม แล้วจะหายไปเมื่อซิงก์ครั้งถัดไป",jobsN:"งาน",exVat:"ยอดก่อน VAT จากงานที่เปิดอยู่",m_quotes:"ใบเสนอราคา (กำลังจะมา)",m_confirmed:"ยืนยันแล้ว",m_onrent:"ออกงานอยู่",m_tobill:"คืนแล้ว รอวางบิล",m_bySale:"แยกตามเซลล์",m_bySaleNote:"งานที่เปิดอยู่ ไม่รวมใบเสนอราคา",m_net:"ยอดสุทธิ",m_avgDisc:"ส่วนลดเฉลี่ย",m_topCust:"ลูกค้าหลัก (งานที่เปิดอยู่)",
+a_top:"อุปกรณ์ทำเงินสูงสุด",a_topNote:"งานที่ยืนยันแล้ว",a_sub:"ของเช่าต่อที่คิดเงินมากสุด",a_subNote:"ของที่เช่ามาให้ลูกค้า",a_idle:"อุปกรณ์ราคาสูงที่ว่าง",a_idleNote:"อุปกรณ์ {n} รายการไม่อยู่ในงานที่เปิดอยู่เลย",jobs:"งาน",store:"สโตร์",catalog:"รายการอุปกรณ์",customers:"ลูกค้า",crew:"เรทช่าง",repair:"ซ่อม",team:"ทีม",settings:"ตั้งค่า",loading:"กำลังโหลด…",
+r_admin:"ผู้ดูแล",r_sale:"ฝ่ายขาย",r_store:"สโตร์",r_accounting:"บัญชี",r_crew:"ดูแลช่าง",r_none:"ดูอย่างเดียว",
+newOrder:"+ สร้างออเดอร์",search:"ค้นหา",searchJobs:"เลขออเดอร์ ชื่องาน ลูกค้า หรือ DOP",openOnly:"งานที่เปิดอยู่",closedLoad:"แสดงงานที่ปิดแล้ว",closedNote:"งานที่ปิดแล้ว (Draft INV และ Cancel) จะโหลดเมื่อกดดู",
+c_no:"ออเดอร์",c_title:"ชื่องาน",c_cust:"ลูกค้า",c_jt:"ประเภทงาน",c_dept:"แผนก",c_ship:"วันส่ง",c_ret:"วันคืน",c_status:"สถานะ",c_dop:"DOP",c_type:"แบบเช่า",c_sub:"ยอดก่อน VAT",
+emptyJobsT:"ยังไม่มีงาน",emptyJobsB:"สร้างออเดอร์ใหม่ หรือให้ Claude ย้ายงานที่เปิดอยู่จากระบบเดิมมา",noMatch:"ไม่พบรายการ",legacy:"จากระบบเดิม",
+orderT:"ออเดอร์",newOrderT:"สร้างออเดอร์",created:"สร้าง",updated:"แก้ไข",rev:"Revision",
+h_dop:"DOP",h_type:"แบบเช่า",h_dpw:"วันต่อสัปดาห์",h_cust:"ลูกค้า",h_title:"ชื่องาน",h_jt:"ประเภทงาน",h_dept:"แผนก",h_bill:"ที่อยู่ออกบิล",h_phone:"โทร",h_fax:"แฟกซ์",h_ship:"วันส่งของ",h_ret:"วันคืนของ",h_us:"เริ่มใช้งาน",h_ue:"สิ้นสุดใช้งาน",h_contact:"ผู้ติดต่อ",h_cphone:"เบอร์ผู้ติดต่อ",h_sale:"เซลล์",h_tax:"ภาษี",h_footer:"Footer",h_remark:"Remark",h_pm:"Production manager (PM)",h_gf:"Gaffer (GF)",h_kg:"Key grip (KG)",h_note:"โน้ตภายใน",
+pick:"กรุณาเลือก",create:"สร้าง",save:"บันทึก",saved:"บันทึกแล้ว",close:"ปิด",cancel:"ยกเลิก",
+needCust:"เลือกลูกค้า",needTitle:"ใส่ชื่องาน",badDates:"วันคืนต้องไม่ก่อนวันส่ง",
+items:"รายการ",addItem:"เพิ่มรายการ",searchItems:"ค้นหารหัสหรือชื่อ",onlyDept:"เฉพาะแผนกนี้",
+i_code:"รหัส",i_desc:"รายละเอียด",i_list:"ราคา",i_qty:"จำนวน",i_days:"วัน",i_amt:"ยอด",i_disc:"ส่วนลด%",i_total:"รวม",i_use:"วันใช้งาน",i_flags:"FOC / Standby",i_ot:"OT ชม.",i_otr:"เรท OT",i_pos:"ตำแหน่ง",i_person:"ช่าง",
+foc:"FOC",sb:"Standby",remove:"ลบ",kitOf:"ชุดของ",free:"ว่าง",ofStock:"จาก",notStocked:"ไม่นับสต็อก",onHold:"ติด Quote {c} ด้วย",shortBy:"ขาด {n}",
+t_list:"ราคารวม",t_disc:"ส่วนลด",t_sub:"ยอดหลังส่วนลด",t_extra:"ส่วนลดเพิ่ม",t_ins:"ค่าประกัน",t_vat:"VAT 7%",t_total:"รวม",t_adj:"ปรับยอด",adjustTo:"ปรับยอดก่อน VAT เป็น",t_grand:"ยอดรวมทั้งหมด",t_type:"รวม {t}",extraDisc:"ส่วนลดเพิ่ม %",insurance:"ค่าประกัน (฿)",
+lockedBy:"มีคนกำลังแก้รายการนี้อยู่ แก้ได้หลัง {t}",editing:"คุณกำลังแก้ไข คนอื่นจะเห็นว่ารายการถูกล็อก",readOnlyItems:"ขั้นนี้แก้รายการไม่ได้",
+st_next:"ขั้นถัดไป",moveTo:"ไป {s}",cancelJob:"ยกเลิกงาน",cancelSure:"แตะอีกครั้งเพื่อยกเลิก",fixStatus:"แก้สถานะ (ผู้ดูแล)",copyJob:"คัดลอกเป็นใบเสนอราคาใหม่",copied:"คัดลอกแล้ว",
+rFlow:"ไปขั้นนี้ไม่ได้",rRole:"บทบาทของคุณทำขั้นนี้ไม่ได้",rNeedCust:"เลือกลูกค้าก่อน",rNeedDates:"ใส่วันส่งและวันคืนก่อน",rNeedItems:"เพิ่มรายการอย่างน้อย 1 รายการ",rClash:"มีอุปกรณ์ไม่พอในช่วงวันนี้",rCheckOut:"เช็กเอาต์อุปกรณ์ให้ครบก่อน",rCheckIn:"เช็กอินให้ครบ (หรือระบุว่าหาย) ก่อน",rNoCancel:"งานที่ส่งของแล้วยกเลิกไม่ได้",
+checkout:"เช็กเอาต์",checkin:"เช็กอิน",outQ:"ออก",inQ:"กลับ",dmg:"เสียหาย",lost:"หาย",allOut:"ออกครบ",allIn:"กลับครบ ปกติ",sendRepair:"ส่งของเสียหายเข้าซ่อม",sentRepair:"สร้างใบซ่อมแล้ว",
+docs:"เอกสาร",docQuote:"ใบเสนอราคา",docDraft:"Draft INV",docItems:"Item list",withDisc:"แสดงส่วนลด",noDisc:"ไม่แสดงส่วนลด",download:"ดาวน์โหลด",preview:"ดูตัวอย่าง",dlUnavailable:"หน้านี้ดาวน์โหลดไม่ได้",dlDeclined:"ยกเลิกการดาวน์โหลด",
+activity:"ประวัติ",a_created:"สร้างออเดอร์",a_status:"เปลี่ยนสถานะเป็น {s}",a_items:"แก้รายการ",a_header:"แก้รายละเอียด",a_out:"เช็กเอาต์",a_in:"เช็กอิน",
+storeT:"สโตร์",outToday:"ส่งออก",backToday:"รับคืน",overdue:"เลยกำหนด",next7:"7 วันข้างหน้า",nothing:"ไม่มีงาน",
+catT:"รายการอุปกรณ์",searchCat:"ค้นหารหัสหรือชื่อ",allTypes:"ทุกประเภท",allDepts:"ทุกแผนก",stock:"สต็อก",price:"เรทต่อวัน",maxDisc:"ลดสูงสุด%",discountable:"ลดได้",serial:"ซีเรียล",kit:"อุปกรณ์ในชุด",addPart:"เพิ่มชิ้นส่วน",ratio:"ต่อชุด",showMore:"แสดงเพิ่ม {n}",itemEdit:"แก้ไขรายการ",itemNew:"รายการใหม่",yes:"ใช่",no:"ไม่",edited:"แก้ในระบบใหม่",
+custT:"ลูกค้า",searchCust:"ค้นหาชื่อ รหัส หรือเลขภาษี",custNew:"ลูกค้าใหม่",custEdit:"แก้ไขลูกค้า",c_code:"รหัส",c_name:"ชื่อ",c_tax:"เลขผู้เสียภาษี",c_type:"ประเภท",c_disc:"ส่วนลดตั้งต้น%",c_addr:"ที่อยู่ออกบิล",c_phone:"โทร",
+crewT:"เรทช่าง",searchCrew:"ค้นหาชื่อ รหัส หรือตำแหน่ง",p_price:"เรท / 1 คิว",p_ot:"OT / ชม.",p_cost:"ต้นทุน",
+repT:"งานซ่อม",rp_wait:"รอซ่อม",rp_doing:"กำลังซ่อม",rp_done:"ซ่อมเสร็จ",rp_lost:"หาย",rp_from:"จากออเดอร์",noRepairs:"ไม่มีใบซ่อม",
+teamHelp:"เจ้าของและ Editor ของหน้านี้เป็นผู้ดูแลเสมอ กำหนดบทบาทให้คนอื่นที่นี่ และต้องแชร์หน้านี้ให้ด้วยปุ่ม Share",addPerson:"เพิ่มคน",searchPeople:"ค้นหาจากชื่อ",add:"เพิ่ม",members:"สมาชิก",noMembers:"ยังไม่มีใครได้รับบทบาท",alwaysAdmin:"ผู้ดูแล (เจ้าของหรือ Editor)",noSearch:"ไม่พบชื่อ",
+roleGuide:"แต่ละบทบาททำอะไรได้",g_admin:"ทำได้ทุกอย่าง รวมถึงแก้สถานะและตั้งค่า",g_sale:"ใบเสนอราคา ออเดอร์ รายการ อนุมัติ ยกเลิก",g_store:"เช็กเอาต์ ส่งของ เช็กอิน งานซ่อม สต็อก",g_accounting:"Returned → Draft INV ค่าประกัน ส่วนลดเพิ่ม",g_crew:"เรทช่าง",
+setT:"ตั้งค่า",company:"ชื่อบริษัทบนเอกสาร",companyAddr:"ที่อยู่บริษัท",companyTax:"เลขผู้เสียภาษีบริษัท",remarks:"เทมเพลต Remark",footers:"เทมเพลต Footer",
+noRole:"ตอนนี้ดูได้อย่างเดียว ให้ผู้ดูแลกำหนดบทบาทให้",offline:"เชื่อมฐานข้อมูลไม่ได้ เปิดหน้านี้ใน Claude ขณะล็อกอิน",
+errPerm:"ระบบไม่รับการแก้ไข คุณอาจไม่มีสิทธิ์",errQuota:"พื้นที่เก็บข้อมูลเต็ม",errBusy:"มีการแก้พร้อมกันมากไป ลองใหม่อีกครู่",errGeneric:"บันทึกไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่",
+you:"คุณ",someone:"ใครบางคน",days:"วัน",items_n:"{n} รายการ",assumed:"กฎที่ต้องยืนยัน"}};
+let LANG="en"; try{LANG=localStorage.getItem("lhd-lang")||"en";}catch(e){}
+function t(k,p){let s=(I18N[LANG]&&I18N[LANG][k])??I18N.en[k]??k; if(p) for(const a in p) s=s.split("{"+a+"}").join(p[a]); return s;}
+
+/* ================= utils ================= */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad=n=>String(n).padStart(2,"0");
+const ymd=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const today=()=>ymd(new Date());
+const addDays=(s,n)=>{const [y,m,d]=s.split("-").map(Number);const x=new Date(y,m-1,d+n);return ymd(x);};
+const fmtD=s=>{if(!s)return"";const [y,m,d]=s.slice(0,10).split("-");return `${d}/${m}/${y}`;};
+const money=n=>(+n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const baht=n=>"฿ "+money(n);
+const nowISO=()=>new Date().toISOString();
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const clone=o=>JSON.parse(JSON.stringify(o??null));
+const uid=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);
+const stCls=s=>"st-"+String(s||"").split(" ")[0];
+const typeName=id=>(TYPES.find(x=>x.id===+id)||{}).k||"";
+const typeLabel=id=>{const k=typeName(id);return k?k[0]+k.slice(1).toLowerCase():"";};
+const JOB_TYPES=["CO-PRO","FILM","SP","TVC","TVD"];
+const DEPTS=[{id:1,name:"LIGHTING"},{id:2,name:"GRIP"},{id:3,name:"GRIP&LIGHTING"}];
+const deptName=id=>(DEPTS.find(d=>d.id===+id)||{}).name||"";
+
+/* ================= state ================= */
+const S={db:null,user:null,me:null,admin:false,canWrite:true,offline:false,dl:null,
+ cfg:{}, catBase:new Map(), catEdits:new Map(), cat:new Map(), custBase:new Map(), custEdits:new Map(), cust:new Map(), crew:[], positions:[],
+ orders:new Map(), closed:new Map(), team:new Map(), repairs:new Map(), prof:{},
+ loaded:{orders:false,cat:false,cust:false,team:false},
+ tab:"jobs", headKey:"", jf:"open", jq:"", showClosed:false, cq:"", ctype:"all", cdept:"all", climit:100, kq:"", klimit:100, rq:"", rf:"open",
+ sheet:null, openId:null, lines:null, linesVer:0, ttab:1, iq:"", idept:true, lock:{mine:false,until:null}, confirm:null, docKind:"quote", docDisc:true, teamHits:null, ids:{}, idsLoaded:false, reveal:new Set(), idRows:null};
+
+function role(){ if(!S.db||!S.canWrite) return "none"; if(S.admin) return "admin"; const m=S.me?.id&&S.team.get(S.me.id); return m?.role||"none"; }
+const isR=(...rs)=>rs.includes(role());
+
+/* ================= writes ================= */
+const Q={};
+function enqueue(path,fn){const p=(Q[path]||Promise.resolve()).then(()=>attempt(fn));Q[path]=p.catch(()=>{});return p;}
+async function attempt(fn){try{return await fn();}catch(e){ if(e&&(e.code==="unavailable"||e.code==="resource_exhausted")){await sleep(e.code==="unavailable"?400+Math.random()*600:1500);try{return await fn();}catch(e2){fail(e2);}} else fail(e);} }
+function fail(e){const c=e&&e.code; toast(t(c==="invalid_argument"||c==="not_granted"?"errPerm":c==="quota_exceeded"?"errQuota":c==="resource_exhausted"?"errBusy":"errGeneric")); throw e;}
+const put=(path,data)=>enqueue(path,()=>S.db.doc(path).set(data));
+const upd=(path,patch)=>enqueue(path,()=>S.db.doc(path).update(patch));
+const del=path=>enqueue(path,()=>S.db.doc(path).delete());
+function logged(o,a,extra){const log=(o.log?clone(o.log):[]).slice(-79);log.push({at:nowISO(),by:S.me?.id||null,a,...(extra||{})});return log;}
+
+/* ================= derived ================= */
+function rebuildCat(){ S.cat=new Map(S.catBase); for(const [id,e] of S.catEdits){ if(e.deleted){S.cat.delete(id);continue;} S.cat.set(id,{...(S.catBase.get(id)||{}),...e,id,edited:true}); } }
+function rebuildCust(){ S.cust=new Map(S.custBase); for(const [id,e] of S.custEdits){ S.cust.set(id,{...(S.custBase.get(id)||{}),...e,id,edited:true}); } }
+function ordersArr(){return [...S.orders.values()];}
+function stockOf(pid){const p=S.cat.get(pid);return p?Math.max(0,+p.stock||0):0;}
+function lineIssues(o,lines){ if(!o.ship||!o.ret||["Shipped","Returned","Draft INV","Cancel"].includes(o.status)) return []; const need={}; for(const l of lines){ if(!STOCKED_TYPES.includes(l.t)||!l.pid) continue; need[l.pid]=(need[l.pid]||0)+(+l.qty||0); }
+  const out=[]; const all=ordersArr(); for(const pid in need){ const free=stockOf(+pid)-bookedQty(+pid,o.ship,o.ret,all,o.id,today()); if(need[pid]>free) out.push({pid:+pid,short:need[pid]-Math.max(0,free)}); } return out; }
+function holds(pid,o){ const r=[]; for(const x of S.orders.values()){ if(x.id===o.id||x.status!=="Quote"||!x.ship||!x.ret||!(x.ship<=o.ret&&x.ret>=o.ship)) continue; if((x.usage||[]).some(([p])=>p===pid)) r.push(x.no);} return r; }
+
+/* ================= people ================= */
+function pname(id){ if(!id) return t("someone"); if(id===S.me?.id) return S.prof[id]?.name||t("you"); return S.prof[id]?.name||t("someone"); }
+let profBusy=false;
+async function refreshProfiles(){ if(!S.user||profBusy) return; const ids=new Set(S.team.keys()); for(const o of S.orders.values()) (o.log||[]).forEach(l=>l.by&&ids.add(l.by)); if(S.me?.id) ids.add(S.me.id); const need=[...ids]; if(!need.length) return; profBusy=true; try{const ps=await S.user.profiles(need); let ch=false; for(const id of need) if(S.prof[id]?.name!==ps[id]?.name) ch=true; S.prof={...S.prof,...ps}; if(ch) scheduleRender();}finally{profBusy=false;} }
+
+/* ================= render plumbing ================= */
+let raf=0,sheetPending=false,pDown=false,renderWaiting=false;
+/* Never redraw between a press and its click, or the click lands on a node that was just replaced. */
+document.addEventListener("pointerdown",()=>{pDown=true;},true);
+const release=()=>setTimeout(()=>{ pDown=false; if(renderWaiting){renderWaiting=false;scheduleRender();} },0);
+document.addEventListener("click",release,true); document.addEventListener("pointercancel",release,true);
+document.addEventListener("pointerup",()=>setTimeout(()=>{ if(pDown) release(); },350),true);
+function scheduleRender(){ if(raf) return; raf=requestAnimationFrame(()=>{raf=0; if(pDown){renderWaiting=true;return;} render();}); }
+/* Uncommitted text: the field holds something not yet saved (value differs from what was rendered). */
+function typing(el){const a=document.activeElement; if(!a||!el.contains(a)) return false; if(a.tagName==="TEXTAREA"||(a.tagName==="INPUT"&&!["checkbox","radio","button","date","number"].includes(a.type))) return a.value!==a.defaultValue||a.type==="search"; return false;}
+function focusKey(a){ if(!a||a===document.body) return null; if(a.id) return "#"+CSS.escape(a.id); for(const k of ["lk","sk"]) if(a.dataset[k]) return `[data-${k}="${CSS.escape(a.dataset[k])}"][data-${k==="lk"?"lf":"sf"}="${CSS.escape(a.dataset[k==="lk"?"lf":"sf"])}"]`; return null; }
+function withFocus(root,fn){ const a=document.activeElement; const key=root.contains(a)?focusKey(a):null; let sel=null; try{ if(key&&a.selectionStart!=null) sel=[a.selectionStart,a.selectionEnd]; }catch(e){} fn(); if(key){ const b=root.querySelector(key); if(b&&b!==document.activeElement){ b.focus({preventScroll:true}); try{ if(sel&&b.setSelectionRange) b.setSelectionRange(sel[0],sel[1]); }catch(e){} } } }
+function render(){ renderChrome(); if(typing($("#main"))) renderBodyOnly(); else withFocus($("#main"),renderMain); if(S.sheet){ if(typing($("#sheet"))) sheetPending=true; else renderSheet(); } }
+document.addEventListener("focusout",()=>setTimeout(()=>{ if(sheetPending&&!typing($("#sheet"))){sheetPending=false;scheduleRender();} },0));
+function tabsFor(r){ const all=["jobs","store","catalog","customers","crew","repair"]; if(r==="admin") return ["cockpit",...all,"team","settings"]; return all; }
+function renderChrome(){ document.documentElement.lang=LANG; $("#langBtn").textContent=LANG==="th"?"EN":"ไทย";
+  const tabs=tabsFor(role()); if(!tabs.includes(S.tab)) S.tab=tabs[0]; if(role()==="admin"&&!S.tabChosen&&S.tab==="jobs") S.tab="cockpit";
+  $("#tabs").innerHTML=tabs.map(k=>`<button class="tab" role="tab" type="button" data-act="tab" data-tab="${k}" aria-selected="${S.tab===k}">${esc(t(k))}</button>`).join("");
+  $("#who").innerHTML=S.me?`<img alt="" src="${esc(S.me.avatarUrl)}"> <span class="tape" style="--tc:var(--sunk);--tf:var(--ink)">${esc(t("r_"+role()))}</span>`:""; }
+function banner(){ if(S.offline) return `<div class="banner bad">${esc(t("offline"))}</div>`; if(role()==="none"&&S.loaded.team) return `<div class="banner">${esc(t("noRole"))}</div>`; return ""; }
+const VIEWS={cockpit:[headCock,bodyCock],jobs:[headJobs,bodyJobs],store:[headStore,bodyStore],catalog:[headCat,bodyCat],customers:[headCust,bodyCust],crew:[headCrew,bodyCrew],repair:[headRep,bodyRep],team:[headTeam,bodyTeam],settings:[headSet,bodySet]};
+function renderMain(){ const key=S.tab+"|"+LANG+"|"+role()+"|"+S.offline+"|"+(S.tab==="cockpit"?K.sec+(S.cfg.sync?.at||""):""); if(key!==S.headKey){S.headKey=key;$("#viewHead").innerHTML=VIEWS[S.tab][0]();} renderBodyOnly(); }
+function renderBodyOnly(){ $("#viewBody").innerHTML=banner()+VIEWS[S.tab][1](); }
+const loading=()=>`<div class="empty"><p>${esc(t("loading"))}</p></div>`;
+
+/* ================= JOBS ================= */
+function headJobs(){ return `<div class="view-head"><h1>${esc(t("jobs"))}</h1>${isR("admin","sale")?`<button class="btn primary" type="button" data-act="newOrder">${esc(t("newOrder"))}</button>`:""}</div>
+<input class="inp" id="jq" type="search" style="max-width:460px" placeholder="${esc(t("searchJobs"))}" value="${esc(S.jq)}" aria-label="${esc(t("search"))}">`; }
+function jobMatch(o){ const q=S.jq.trim().toLowerCase(); if(!q) return true; return [o.no,o.jobTitle,o.customerName,o.dop].some(v=>String(v||"").toLowerCase().includes(q)); }
+function bodyJobs(){ if(!S.db) return S.offline?"":loading(); if(!S.loaded.orders) return loading();
+  const all=ordersArr(); const cnt={}; for(const o of all) cnt[o.status]=(cnt[o.status]||0)+1;
+  let h=`<div class="stats">${["Quote","Order","Approve","Shipped","Returned"].map(s=>`<button type="button" class="stat ${stCls(s)}" data-act="jf" data-f="${s}" aria-pressed="${S.jf===s}"><b>${cnt[s]||0}</b><span>${esc(s)}</span></button>`).join("")}<button type="button" class="stat" data-act="jf" data-f="open" aria-pressed="${S.jf==="open"}"><b>${all.length}</b><span>${esc(t("openOnly"))}</span></button></div>`;
+  h+=`<div class="row"><button class="chip" type="button" data-act="showClosed" aria-pressed="${S.showClosed}">${esc(t("closedLoad"))}</button>${S.showClosed?["Draft INV","Cancel"].map(s=>`<button class="chip" type="button" data-act="jf" data-f="${s}" aria-pressed="${S.jf===s}"><span class="dot ${stCls(s)}" style="background:var(--tc)"></span>${esc(s)}<span class="n">${[...S.closed.values()].filter(o=>o.status===s).length}</span></button>`).join(""):`<span class="muted small">${esc(t("closedNote"))}</span>`}</div>`;
+  const src=["Draft INV","Cancel"].includes(S.jf)?[...S.closed.values()]:all;
+  const list=src.filter(o=>S.jf==="open"||["Draft INV","Cancel"].includes(S.jf)?(S.jf==="open"||o.status===S.jf):o.status===S.jf).filter(jobMatch).sort((a,b)=>String(b.no).localeCompare(String(a.no)));
+  if(!all.length&&!S.showClosed) return h+`<div class="empty"><h2>${esc(t("emptyJobsT"))}</h2><p>${esc(t("emptyJobsB"))}</p></div>`;
+  if(!list.length) return h+`<div class="empty"><p>${esc(t("noMatch"))}</p></div>`;
+  return h+`<div class="tbl-wrap"><table><thead><tr><th>${esc(t("c_no"))}</th><th>${esc(t("c_title"))}</th><th>${esc(t("c_cust"))}</th><th>${esc(t("c_jt"))}</th><th>${esc(t("c_dept"))}</th><th>${esc(t("c_ship"))}</th><th>${esc(t("c_status"))}</th><th>${esc(t("c_dop"))}</th><th>${esc(t("c_ret"))}</th><th class="r">${esc(t("c_sub"))}</th></tr></thead><tbody>${list.slice(0,600).map(o=>`<tr class="click" data-act="openOrder" data-id="${esc(o.id)}"><td class="mono">${esc(o.no)}</td><td class="ellip" title="${esc(o.jobTitle)}">${esc(o.jobTitle)}</td><td class="ellip" title="${esc(o.customerName)}">${esc(o.customerName)}</td><td>${esc(o.jobType)}</td><td>${esc(deptName(o.dept))}</td><td class="num">${esc(fmtD(o.ship))}</td><td><span class="tape ${stCls(o.status)}">${esc(o.status)}</span></td><td class="ellip">${esc(o.dop)}</td><td class="num">${esc(fmtD(o.ret))}</td><td class="r num">${o.totals?money(o.totals.sub-o.totals.extra+(o.totals.adj||0)):"-"}</td></tr>`).join("")}</tbody></table></div>${list.length>600?`<p class="muted small">+${list.length-600}</p>`:""}`;
+}
+
+/* ================= ORDER SHEET ================= */
+let linesUnsub=null, lockTimer=null;
+async function openOrder(id){ closeSheet(); S.sheet="order"; S.openId=id; S.lines=null; S.ttab=1; S.iq=""; S.confirm=null; S.lock={mine:false,until:null};
+  $("#sheetWrap").hidden=false; $("#sheet").className="sheet"; document.body.style.overflow="hidden"; renderSheet();
+  linesUnsub=S.db.doc("lines/"+id).onSnapshot(snap=>{ if(S.openId!==id) return; const d=snap.exists?snap.data():{items:[]}; if(!S.lock.mine||!S.lines) S.lines=clone(d.items||[]); S.linesVer++; scheduleRender(); },()=>{});
+}
+function closeSheet(){ if(linesUnsub){linesUnsub();linesUnsub=null;} if(lockTimer){clearInterval(lockTimer);lockTimer=null;} if(S.lock.mine&&S.openId&&S.db&&S.me?.id){ S.db.doc("locks/"+S.openId).acquire({holder:S.me.id,ttlMs:1000}).catch(()=>{}); } S.sheet=null;S.openId=null;S.lines=null;S.lock={mine:false,until:null}; $("#sheetWrap").hidden=true; document.body.style.overflow=""; }
+async function takeLock(){ if(!S.openId||!S.me?.id) return false; try{ const r=await S.db.doc("locks/"+S.openId).acquire({holder:S.me.id,ttlMs:90000}); if(r.acquired){ S.lock={mine:true,until:null}; if(!lockTimer) lockTimer=setInterval(()=>{ if(S.openId) S.db.doc("locks/"+S.openId).acquire({holder:S.me.id,ttlMs:90000}).catch(()=>{}); },45000); return true; } S.lock={mine:false,until:r.expiresAt||null}; return false; }catch(e){ S.lock={mine:false,until:null}; return false; } }
+function renderSheet(){ if(!S.sheet) return; const el=$("#sheet"); const st=el.scrollTop; withFocus(el,()=>{ el.innerHTML=`<div class="sheet-in pad">${({order:sheetOrder,neworder:sheetNewOrder,item:sheetItem,cust:sheetCust,repair:sheetRepair,ids:sheetIds}[S.sheet])()}</div>`; }); el.scrollTop=st; }
+const closeBtn=()=>`<button class="btn sm" type="button" data-act="close" aria-label="${esc(t("close"))}">✕</button>`;
+
+function headerFields(o,ro){ const v=k=>esc(o[k]??""); const dis=ro?"disabled":""; const sel=(id,opts,val)=>`<select class="inp" id="${id}" data-h="${id.slice(2)}" ${dis}>${opts.map(([a,b])=>`<option value="${esc(a)}" ${String(val)===String(a)?"selected":""}>${esc(b)}</option>`).join("")}</select>`;
+  const sales=(S.cfg.sales||[]); const rem=(S.cfg.remarks||[]); const ft=(S.cfg.footers||[]);
+  return `<div class="grid">
+  <label class="field"><span>${esc(t("h_dop"))}</span><input class="inp" id="h-dop" data-h="dop" value="${v("dop")}" ${dis}></label>
+  <label class="field"><span>${esc(t("h_type"))}</span>${sel("h-rentType",[["Daily","Daily"],["Weekly","Weekly"]],o.rentType||"Daily")}</label>
+  <label class="field"><span>${esc(t("h_dpw"))}</span><input class="inp" id="h-dpw" data-h="dpw" type="number" min="0" max="7" value="${v("dpw")}" ${dis}></label>
+  <label class="field span2"><span>${esc(t("h_cust"))}</span><input class="inp" id="h-customerName" list="custList" data-h="customerName" value="${v("customerName")}" ${dis} autocomplete="off"></label>
+  <label class="field span2"><span>${esc(t("h_title"))}</span><input class="inp" id="h-jobTitle" data-h="jobTitle" value="${v("jobTitle")}" ${dis}></label>
+  <label class="field"><span>${esc(t("h_jt"))}</span>${sel("h-jobType",[["",t("pick")],...JOB_TYPES.map(x=>[x,x])],o.jobType||"")}</label>
+  <label class="field"><span>${esc(t("h_dept"))}</span>${sel("h-dept",[["",t("pick")],...DEPTS.map(d=>[d.id,d.name])],o.dept||"")}</label>
+  <label class="field spanall"><span>${esc(t("h_bill"))}</span><input class="inp" id="h-billing" data-h="billing" value="${v("billing")}" ${dis}></label>
+  <label class="field"><span>${esc(t("h_phone"))}</span><input class="inp" id="h-phone" data-h="phone" value="${v("phone")}" ${dis}></label>
+  <label class="field"><span>${esc(t("h_fax"))}</span><input class="inp" id="h-fax" data-h="fax" value="${v("fax")}" ${dis}></label>
+  <label class="field"><span>${esc(t("h_ship"))}</span><input class="inp" type="date" id="h-ship" data-h="ship" value="${v("ship")}" ${dis}></label>
+  <label class="field"><span>${esc(t("h_ret"))}</span><input class="inp" type="date" id="h-ret" data-h="ret" value="${v("ret")}" ${dis}></label>
+  <label class="field"><span>${esc(t("h_us"))}</span><input class="inp" type="date" id="h-useStart" data-h="useStart" value="${v("useStart")}" ${dis}></label>
+  <label class="field"><span>${esc(t("h_ue"))}</span><input class="inp" type="date" id="h-useEnd" data-h="useEnd" value="${v("useEnd")}" ${dis}></label>
+  <label class="field"><span>${esc(t("h_contact"))}</span><input class="inp" id="h-contact" data-h="contact" value="${v("contact")}" ${dis}></label>
+  <label class="field"><span>${esc(t("h_cphone"))}</span><input class="inp" id="h-contactPhone" data-h="contactPhone" value="${v("contactPhone")}" ${dis}></label>
+  <label class="field"><span>${esc(t("h_sale"))}</span>${sel("h-sale",[["",t("pick")],...sales.map(s=>[s.nick||s.code,(s.nick||"")+(s.code?" · "+s.code:"")])].concat(o.sale&&!sales.some(s=>(s.nick||s.code)===o.sale)?[[o.sale,o.sale]]:[]),o.sale||"")}</label>
+  <label class="field"><span>${esc(t("h_tax"))}</span>${sel("h-tax",[["Vat","Vat"],["Not Vat","Not Vat"]],o.tax||"Vat")}</label>
+  <label class="field"><span>${esc(t("h_footer"))}</span>${sel("h-footerId",[["",t("pick")],...ft.map(f=>[f.id,f.name])],o.footerId||"")}</label>
+  <label class="field"><span>${esc(t("h_remark"))}</span>${sel("h-remarkId",[["",t("pick")],...rem.map(f=>[f.id,f.name])],o.remarkId||"")}</label>
+  <label class="field"><span>${esc(t("h_pm"))}</span><input class="inp" id="h-pm" data-h="pm" value="${v("pm")}" ${dis}></label>
+  <label class="field"><span>${esc(t("h_gf"))}</span><input class="inp" id="h-gaffer" data-h="gaffer" value="${v("gaffer")}" ${dis}></label>
+  <label class="field"><span>${esc(t("h_kg"))}</span><input class="inp" id="h-keyGrip" data-h="keyGrip" value="${v("keyGrip")}" ${dis}></label>
+  <label class="field spanall"><span>${esc(t("h_note"))}</span><textarea class="inp" id="h-note" data-h="note" ${dis}>${v("note")}</textarea></label></div>`; }
+function custDatalist(){ return `<datalist id="custList">${[...S.cust.values()].slice(0,5000).map(c=>`<option value="${esc(c.name)}">${esc(c.code||"")}</option>`).join("")}</datalist>`; }
+
+function sheetNewOrder(){ const o={rentType:"Daily",tax:"Vat",ship:today(),ret:today(),useStart:today(),useEnd:today(),remarkId:(S.cfg.remarks||[]).find(r=>r.def)?.id||"",footerId:(S.cfg.footers||[]).find(r=>r.def)?.id||""};
+  return `<div class="sheet-head"><h2>${esc(t("newOrderT"))}</h2>${closeBtn()}</div><form class="sec" id="newOrderForm">${headerFields(o,false)}${custDatalist()}<div class="row"><button class="btn primary" type="submit">${esc(t("create"))}</button></div></form>`; }
+
+function sheetOrder(){ const o=S.orders.get(S.openId)||S.closed.get(S.openId); if(!o) return `<div class="sheet-head"><p>${esc(t("loading"))}</p>${closeBtn()}</div>`;
+  const r=role(); const lines=S.lines||[]; const editH=(r==="admin"&&o.status!=="Draft INV")||(r==="sale"&&["Quote","Order"].includes(o.status));
+  const editL=canEditLines(r,o.status); const issues=lineIssues(o,lines);
+  const idx=STATUSES.indexOf(o.status);
+  let h=`<div class="sheet-head"><div style="min-width:0"><div class="row"><span class="mono muted">${esc(t("orderT"))} # ${esc(o.no)}</span><span class="tape ${stCls(o.status)}">${esc(o.status)}</span>${o.legacyId?`<span class="tag">${esc(t("legacy"))}</span>`:""}<span class="muted small">${esc(t("rev"))} ${esc(String(o.rev||0).padStart(3,"0"))}</span></div><h2>${esc(o.jobTitle||"—")}</h2><div class="muted">${esc(o.customerName||"")}</div></div>${closeBtn()}</div>`;
+  if(o.status!=="Cancel") h+=`<ol class="stepper ${stCls(o.status)}">${STATUSES.map((s,i)=>`<li class="${i<idx?"done":i===idx?"now":""}">${esc(s)}</li>`).join("")}</ol>`;
+  // actions
+  const moves=(({Quote:["Order"],Order:["Approve","Quote"],Approve:["Shipped","Order"],Shipped:["Returned"],Returned:["Draft INV"]})[o.status]||[]);
+  const btns=moves.map(s=>{ const why=moveCheck(r,o,s,lines,issues); if(why==="rRole") return ""; return {s,why}; }).filter(Boolean);
+  const canCancel=moveCheck(r,o,"Cancel",lines,issues)===null;
+  h+=`<div class="row">${btns.map((b,i)=>`<button class="btn ${i===0?"primary":""}" type="button" data-act="move" data-s="${esc(b.s)}" ${b.why||!S.lines?"disabled":""}>${esc(t("moveTo",{s:b.s}))}</button>`).join("")}${canCancel?`<button class="btn danger" type="button" data-act="move" data-s="Cancel">${esc(S.confirm==="cancel"?t("cancelSure"):t("cancelJob"))}</button>`:""}${isR("admin","sale")?`<button class="btn ghost" type="button" data-act="copyOrder">${esc(t("copyJob"))}</button>`:""}${r==="admin"?`<select class="inp" id="fixStatus" style="width:auto" aria-label="${esc(t("fixStatus"))}"><option value="">${esc(t("fixStatus"))}</option>${[...STATUSES,"Cancel"].filter(s=>s!==o.status).map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join("")}</select>`:""}</div>`;
+  const reasons=[...new Set(btns.filter(b=>b.why).map(b=>b.why))]; if(reasons.length) h+=`<div class="muted small">${reasons.map(x=>esc(t(x))).join(" · ")}</div>`;
+  // header
+  h+=`<section class="sec"><h3>${esc(t("orderT"))}<small>${esc(t("created"))} ${esc(fmtD(o.createdAt))} · ${esc(o.createdByName||pname(o.createdBy))}</small></h3>${headerFields(o,!editH)}${custDatalist()}</section>`;
+  // items
+  h+=itemsSection(o,lines,editL,issues);
+  // store
+  if(["Approve","Shipped","Returned"].includes(o.status)) h+=storeSection(o,lines);
+  // docs + log
+  h+=docsSection(o,lines);
+  const log=(o.log||[]).slice().reverse(); if(log.length) h+=`<section class="sec"><h3>${esc(t("activity"))}</h3><ul class="log">${log.map(e=>{const w=new Date(e.at);const x=e.a==="created"?t("a_created"):e.a==="status"?t("a_status",{s:e.to}):t("a_"+e.a);return `<li><time>${esc(fmtD(ymd(w)))} ${pad(w.getHours())}:${pad(w.getMinutes())}</time><b>${esc(e.byName||pname(e.by))}</b> ${esc(x)}</li>`;}).join("")}</ul></section>`;
+  return h; }
+
+function itemsSection(o,lines,editL,issues){
+  const cnt={}; for(const l of lines) if(!l.parent) cnt[l.t]=(cnt[l.t]||0)+1;
+  const tt=S.ttab; const rows=lines.filter(l=>l.t===tt); const short=Object.fromEntries(issues.map(x=>[x.pid,x.short]));
+  const lockMsg=editL?(S.lock.mine?`<div class="banner">${esc(t("editing"))}</div>`:(S.lock.until?`<div class="banner bad">${esc(t("lockedBy",{t:new Date(S.lock.until).toLocaleTimeString()}))}</div>`:"")):`<div class="muted small">${esc(t("readOnlyItems"))}</div>`;
+  const can=editL&&S.lock.mine;
+  let h=`<section class="sec"><h3>${esc(t("items"))}<small>${esc(t("t_grand"))}: ${baht(orderTotals(lines,o).total)}</small></h3>${lockMsg}
+  <div class="ttabs" role="tablist">${TYPES.map(x=>`<button class="ttab" type="button" role="tab" data-act="ttab" data-t="${x.id}" aria-selected="${tt===x.id}">${esc(typeLabel(x.id))}${cnt[x.id]?`<span class="n">${cnt[x.id]}</span>`:""}</button>`).join("")}</div>`;
+  if(!S.lines) return h+`<p class="muted">${esc(t("loading"))}</p></section>`;
+  const crew=tt===5||tt===7;
+  h+=`<div class="tbl-wrap"><table><thead><tr><th>${esc(t("i_code"))}</th><th>${esc(t("i_desc"))}</th><th class="r">${esc(t("i_list"))}</th><th class="r">${esc(t("i_qty"))}</th><th class="r">${esc(t("i_days"))}</th>${crew?`<th class="r">${esc(t("i_ot"))}</th><th class="r">${esc(t("i_otr"))}</th>`:""}<th class="r">${esc(t("i_amt"))}</th><th class="r">${esc(t("i_disc"))}</th><th class="r">${esc(t("i_total"))}</th><th>${esc(t("i_use"))}</th><th>${esc(t("i_flags"))}</th>${can?"<th></th>":""}</tr></thead><tbody>`;
+  if(!rows.length) h+=`<tr><td colspan="${crew?13:11}" class="muted">—</td></tr>`;
+  for(const l of rows){ const c=lineCalc(l); const child=!!l.parent; const sh=!child&&short[l.pid];
+    const numAny=(f,v,step)=>`<input class="inp cell" type="number" min="0" step="${step||1}" data-lk="${esc(l.k)}" data-lf="${f}" value="${esc(v)}">`; const num=(f,v,step)=>can&&!child?`<input class="inp cell" type="number" min="0" step="${step||1}" data-lk="${esc(l.k)}" data-lf="${f}" value="${esc(v)}">`:`<span class="num">${esc(v===""||v==null?"-":v)}</span>`;
+    const hold=(!child&&STOCKED_TYPES.includes(l.t)&&!["Shipped","Returned","Draft INV","Cancel"].includes(o.status))?holds(l.pid,o):[];
+    h+=`<tr class="${child?"child":""} ${sh?"bad":""}"><td class="mono">${esc(l.code)}</td><td style="min-width:200px">${esc(l.desc)}${sh?`<div class="bad small">${esc(t("shortBy",{n:sh}))}</div>`:""}${hold.length?`<div class="warn small">${esc(t("onHold",{c:hold.join(", ")}))}</div>`:""}${l.remark?`<div class="muted small">${esc(l.remark)}</div>`:""}</td>
+    <td class="r num">${can?numAny("list",l.list,"0.01"):(child&&!+l.list?"-":money(l.list))}</td><td class="r">${num("qty",l.qty)}</td><td class="r">${num("days",l.days,"0.5")}</td>
+    ${crew?`<td class="r">${num("ot",l.ot||0,"0.5")}</td><td class="r">${num("otRate",l.otRate||0)}</td>`:""}
+    <td class="r num">${child&&!c.amount?"-":money(c.amount)}</td><td class="r">${can?numAny("disc",l.disc||0,"0.01"):(child&&!c.amount?"-":esc(l.disc||0))}</td><td class="r num">${child&&!c.amount?"-":money(c.total)}</td>
+    <td class="num small" style="white-space:nowrap">${can&&!child?`<input class="inp cell" style="width:128px;text-align:left" type="date" data-lk="${esc(l.k)}" data-lf="start" value="${esc(l.start)}"> <input class="inp cell" style="width:128px;text-align:left" type="date" data-lk="${esc(l.k)}" data-lf="end" value="${esc(l.end)}">`:`${esc(fmtD(l.start))} - ${esc(fmtD(l.end))}`}</td>
+    <td>${child?"":`<span class="row" style="gap:4px">${can?`<button type="button" class="chip" data-act="flag" data-k="${esc(l.k)}" data-f="foc" aria-pressed="${!!l.foc}">${esc(t("foc"))}</button><button type="button" class="chip" data-act="flag" data-k="${esc(l.k)}" data-f="sb" aria-pressed="${!!l.sb}">${esc(t("sb"))}</button>`:`${l.foc?`<span class="tag">FOC</span>`:""}${l.sb?`<span class="tag">Standby</span>`:""}`}</span>`}</td>
+    ${can?`<td>${child?"":`<button class="btn sm ghost" type="button" data-act="rmLine" data-k="${esc(l.k)}">${esc(t("remove"))}</button>`}</td>`:""}</tr>`; }
+  h+=`</tbody></table></div>`;
+  const T=typeTotals(lines,tt); const G=orderTotals(lines,o); const canMoney=isR("admin","accounting")||(isR("sale")&&["Quote","Order"].includes(o.status));
+  h+=`<div class="cols2"><div>${can?addItemBox(o):""}</div><div style="display:flex;flex-direction:column;gap:10px">
+  <div class="totals"><b class="spanall" style="grid-column:1/-1">${esc(t("t_type",{t:typeLabel(tt)}))}</b><span>${esc(t("t_list"))}</span><span class="num">${baht(T.list)}</span><span>${esc(t("t_disc"))}</span><span class="num">${baht(T.disc)}</span><span>${esc(t("t_sub"))}</span><span class="num">${baht(T.sub)}</span></div>
+  <div class="totals"><b style="grid-column:1/-1">${esc(t("t_grand"))}</b><span>${esc(t("t_list"))}</span><span class="num">${baht(G.list)}</span><span>${esc(t("t_disc"))}</span><span class="num">${baht(G.disc)}</span><span>${esc(t("t_sub"))}</span><span class="num">${baht(G.sub)}</span>
+  <span>${esc(t("extraDisc"))}</span><span>${canMoney&&o.status!=="Draft INV"?`<input class="inp cell" id="h-extraDisc" data-h="extraDisc" type="number" min="0" max="100" step="0.01" value="${esc(o.extraDisc||0)}">`:`<span class="num">${esc(o.extraDisc||0)}%</span>`}</span>${G.extra?`<span>${esc(t("t_extra"))}</span><span class="num">- ${baht(G.extra)}</span>`:""}
+  <span>${esc(t("adjustTo"))}</span><span>${canMoney&&o.status!=="Draft INV"?`<input class="inp cell" style="width:110px" id="adjustTo" type="number" step="0.01" placeholder="${esc(money(G.sub-G.extra))}" value="${G.adj?esc(r2(G.sub-G.extra+G.adj)):""}">`:`<span class="num">${G.adj?baht(G.sub-G.extra+G.adj):"–"}</span>`}</span>${G.adj?`<span>${esc(t("t_adj"))}</span><span class="num">${G.adj>0?"+ ":"- "}${baht(Math.abs(G.adj))}</span>`:""}
+  <span>${esc(t("insurance"))}</span><span>${canMoney&&o.status!=="Draft INV"?`<input class="inp cell" id="h-insurance" data-h="insurance" type="number" min="0" step="0.01" value="${esc(o.insurance||0)}">`:`<span class="num">${baht(G.ins)}</span>`}</span>
+  <span>${esc(t("t_vat"))}${o.tax==="Not Vat"?" (Not Vat)":""}</span><span class="num">${baht(G.vat)}</span><span class="rule"></span><span><b>${esc(t("t_total"))}</b></span><span class="big num">${baht(G.total)}</span></div></div></div></section>`;
+  return h; }
+
+function addItemBox(o){ const q=S.iq.trim().toLowerCase(); const tt=S.ttab;
+  let h=`<div class="field"><span>${esc(t("addItem"))} · ${esc(typeLabel(tt))}</span><input class="inp" id="iq" type="search" placeholder="${esc(t("searchItems"))}" value="${esc(S.iq)}" autocomplete="off"></div>${o.dept&&o.dept!==3?`<label class="row small"><input type="checkbox" id="idept" ${S.idept?"checked":""}> ${esc(t("onlyDept"))} (${esc(deptName(o.dept))})</label>`:""}<div id="iresults">${itemResults(o)}</div>`;
+  return h; }
+function itemResults(o){ const q=S.iq.trim().toLowerCase(); if(q.length<1) return ""; const tt=S.ttab;
+  if(tt===5||tt===7){ const res=[]; for(const c of S.crew){ for(const p of c.pos||[]){ if(p.enable===false) continue; const name=[c.first,c.last].filter(Boolean).join(" ")||c.nick||p.name; if(![name,c.code,p.name,p.code].some(v=>String(v||"").toLowerCase().includes(q))) continue; if(S.idept&&o.dept&&o.dept!==3&&p.dept&&p.dept!==deptName(o.dept)) continue; res.push({c,p,name}); if(res.length>=40) break;} if(res.length>=40) break; }
+    if(!res.length) return `<p class="muted small">${esc(t("noMatch"))}</p>`;
+    return `<div class="results">${res.map(({c,p,name})=>`<div class="res"><div style="min-width:0"><div>${esc(p.name)} <span class="muted">· ${esc(name)}</span></div><div class="muted small mono">${esc(p.code)} · ${money(p.price)} · OT ${money(p.priceOt)}</div></div><button class="btn sm" type="button" data-act="addCrew" data-cid="${esc(c.id)}" data-pc="${esc(p.code)}">${esc(t("add"))}</button></div>`).join("")}</div>`; }
+  const list=[]; for(const p of S.cat.values()){ if(p.type!==tt) continue; if(S.idept&&o.dept&&o.dept!==3&&p.dept!==o.dept) continue; if(!(String(p.code).toLowerCase().includes(q)||String(p.desc).toLowerCase().includes(q))) continue; list.push(p); if(list.length>=40) break; }
+  if(!list.length) return `<p class="muted small">${esc(t("noMatch"))}</p>`;
+  const all=ordersArr();
+  return `<div class="results">${list.map(p=>{ let av=""; if(STOCKED_TYPES.includes(p.type)&&o.ship&&o.ret){ const inThis=(S.lines||[]).filter(l=>l.pid===p.id).reduce((a,l)=>a+(+l.qty||0),0); const f=stockOf(p.id)-bookedQty(p.id,o.ship,o.ret,all,o.id,today())-inThis; av=f>0?`<span class="good">${esc(t("free"))} ${f} ${esc(t("ofStock"))} ${stockOf(p.id)}</span>`:`<span class="bad">${esc(t("free"))} ${Math.max(0,f)} ${esc(t("ofStock"))} ${stockOf(p.id)}</span>`; } else av=`<span class="muted">${esc(t("notStocked"))}</span>`;
+    return `<div class="res"><div style="min-width:0"><div>${esc(p.desc)}${p.kit&&p.kit.length?` <span class="tag">${esc(t("kit"))} ${p.kit.length}</span>`:""}</div><div class="muted small"><span class="mono">${esc(p.code)}</span> · ${money(p.price)} · ${av}</div></div><button class="btn sm" type="button" data-act="addLine" data-pid="${p.id}">${esc(t("add"))}</button></div>`; }).join("")}</div>`; }
+
+function storeSection(o,lines){ const can=isR("admin","store"); const stocked=lines.filter(l=>STOCKED_TYPES.includes(l.t)); if(!stocked.length) return "";
+  const mode=o.status==="Approve"?"out":"in";
+  let h=`<section class="sec"><h3>${esc(t(mode==="out"?"checkout":"checkin"))}<small>${stocked.filter(l=>mode==="out"?(+l.out||0)>=(+l.qty||0):((+l.in||0)+(+l.lost||0))>=(+l.out||0)).length} / ${stocked.length}</small></h3>
+  ${can&&o.status!=="Returned"?`<div class="row"><button class="btn" type="button" data-act="${mode==="out"?"allOut":"allIn"}">${esc(t(mode==="out"?"allOut":"allIn"))}</button></div>`:""}
+  <div class="tbl-wrap"><table><thead><tr><th>${esc(t("i_code"))}</th><th>${esc(t("i_desc"))}</th><th class="r">${esc(t("i_qty"))}</th><th class="r">${esc(t("outQ"))}</th>${mode==="in"?`<th class="r">${esc(t("inQ"))}</th><th class="r">${esc(t("dmg"))}</th><th class="r">${esc(t("lost"))}</th>`:""}</tr></thead><tbody>`;
+  for(const l of stocked){ const cell=(f,max)=>can&&o.status!=="Returned"&&((mode==="out"&&f==="out")||(mode==="in"&&f!=="out"))?`<input class="inp cell" type="number" min="0" max="${max}" data-sk="${esc(l.k)}" data-sf="${f}" value="${esc(+l[f]||0)}">`:`<span class="num">${+l[f]||0}</span>`;
+    const done=mode==="out"?(+l.out||0)>=(+l.qty||0):((+l.in||0)+(+l.lost||0))>=(+l.out||0);
+    h+=`<tr class="${l.parent?"child":""}"><td class="mono">${esc(l.code)}</td><td>${esc(l.desc)} ${done?`<span class="good">✓</span>`:""}</td><td class="r num">${+l.qty||0}</td><td class="r">${cell("out",l.qty)}</td>${mode==="in"?`<td class="r">${cell("in",l.out)}</td><td class="r">${cell("dmg",l.in)}</td><td class="r">${cell("lost",l.out)}</td>`:""}</tr>`; }
+  h+=`</tbody></table></div>`;
+  if(mode==="in"&&can&&stocked.some(l=>(+l.dmg||0)>0&&!l.repaired)) h+=`<div><button class="btn" type="button" data-act="sendRepair">${esc(t("sendRepair"))}</button></div>`;
+  return h+`</section>`; }
+
+/* ================= documents ================= */
+function docsSection(o,lines){ return `<section class="sec"><h3>${esc(t("docs"))}</h3><div class="row"><div class="seg">${[["quote","docQuote"],["draft","docDraft"],["items","docItems"]].map(([k,l])=>`<button type="button" data-act="docKind" data-k="${k}" aria-pressed="${S.docKind===k}">${esc(t(l))}</button>`).join("")}</div>${S.docKind!=="items"?`<div class="seg"><button type="button" data-act="docDisc" data-v="1" aria-pressed="${S.docDisc}">${esc(t("withDisc"))}</button><button type="button" data-act="docDisc" data-v="0" aria-pressed="${!S.docDisc}">${esc(t("noDisc"))}</button></div>`:""}<button class="btn primary" type="button" data-act="download" ${S.lines?"":"disabled"}>${esc(t("download"))} .html</button>${isR("admin")&&S.idsLoaded&&(lines||[]).some(l=>[5,7].includes(l.t)&&l.crewId)?`<button class="btn" type="button" data-act="crewIds">${esc(t("crewIdsBtn"))}</button>`:""}</div>
+  <details><summary class="small muted" style="cursor:pointer">${esc(t("preview"))}</summary><div class="doc">${S.lines?docBody(o,lines,S.docKind,S.docDisc):""}</div></details></section>`; }
+function docBody(o,lines,kind,disc){ const G=orderTotals(lines,o); const title=kind==="quote"?"QUOTATION / ใบเสนอราคา":kind==="draft"?"DRAFT INVOICE":"ITEM LIST";
+  const c=S.cfg.company||{}; const rem=(S.cfg.remarks||[]).find(r=>String(r.id)===String(o.remarkId)); const ft=(S.cfg.footers||[]).find(r=>String(r.id)===String(o.footerId));
+  const th='style="text-align:left;border-bottom:1px solid #999;padding:4px 6px;font-size:11px"', td='style="padding:3px 6px;border-bottom:1px solid #eee;font-size:12px;vertical-align:top"', tdr='style="padding:3px 6px;border-bottom:1px solid #eee;font-size:12px;text-align:right;white-space:nowrap"';
+  let h=`<div style="font-family:'IBM Plex Sans Thai',Arial,sans-serif;color:#111;min-width:640px"><div style="display:flex;justify-content:space-between;gap:20px;border-bottom:3px solid #111;padding-bottom:8px"><div><div style="font-size:20px;font-weight:700;letter-spacing:.06em">${esc(c.name||"Lighthouse Film Service")}</div><div style="font-size:11px;white-space:pre-wrap">${esc(c.addr||"")}</div>${c.tax?`<div style="font-size:11px">Tax ID ${esc(c.tax)}</div>`:""}</div><div style="text-align:right"><div style="font-size:16px;font-weight:700">${esc(title)}</div><div style="font-size:12px">No. ${esc(o.no)} · Rev ${esc(String(o.rev||0).padStart(3,"0"))}</div><div style="font-size:12px">Date ${esc(fmtD(today()))}</div></div></div>
+  <table style="width:100%;margin:10px 0;font-size:12px;border-collapse:collapse"><tr><td style="width:50%;vertical-align:top"><b>${esc(o.customerName)}</b><br>${esc(o.billing||"")}<br>${o.phone?"Tel "+esc(o.phone):""}${o.contact?`<br>Attn: ${esc(o.contact)} ${esc(o.contactPhone||"")}`:""}</td><td style="vertical-align:top">Job: <b>${esc(o.jobTitle)}</b><br>Job type: ${esc(o.jobType||"")} · ${esc(deptName(o.dept))}<br>Ship ${esc(fmtD(o.ship))} · Return ${esc(fmtD(o.ret))}<br>Usage ${esc(fmtD(o.useStart))} – ${esc(fmtD(o.useEnd))}<br>DOP ${esc(o.dop||"")} · Sales ${esc(o.sale||"")}</td></tr></table>`;
+  for(const ty of TYPES){ const rows=lines.filter(l=>l.t===ty.id); if(!rows.length) continue; const T=typeTotals(lines,ty.id);
+    h+=`<div style="font-weight:700;margin-top:10px;font-size:13px">${esc(ty.k)}</div><table style="width:100%;border-collapse:collapse"><thead><tr><th ${th}>Code</th><th ${th}>Description</th>${kind==="items"?`<th ${th}>Qty</th>`:`<th ${th}>Price</th><th ${th}>Qty</th><th ${th}>Days</th>${disc?`<th ${th}>Amount</th><th ${th}>Disc%</th>`:""}<th ${th}>Total</th>`}</tr></thead><tbody>`;
+    for(const l of rows){ const k=lineCalc(l); const child=!!l.parent;
+      const free=child&&!k.amount;
+      h+=kind==="items"?`<tr><td ${td}>${esc(l.code)}</td><td ${td}>${child?"&nbsp;&nbsp;– ":""}${esc(l.desc)}</td><td ${tdr}>${+l.qty||0}</td></tr>`
+      :`<tr><td ${td}>${esc(l.code)}</td><td ${td}>${child?"&nbsp;&nbsp;– ":""}${esc(l.desc)}${l.foc?" (FOC)":""}${l.sb?" (Standby)":""}</td><td ${tdr}>${free?"-":money(l.list)}</td><td ${tdr}>${+l.qty||0}</td><td ${tdr}>${+l.days||0}</td>${disc?`<td ${tdr}>${free?"-":money(k.amount)}</td><td ${tdr}>${free||!+l.disc?"-":money(l.disc)}</td>`:""}<td ${tdr}>${free?"-":money(disc?k.total:k.amount)}</td></tr>`; }
+    if(kind!=="items") h+=`<tr><td colspan="${disc?7:5}" ${tdr}>${disc?`List ${money(T.list)} · Discount ${money(T.disc)} · `:""}<b>Sub total ${money(disc?T.sub:T.list)}</b></td></tr>`;
+    h+=`</tbody></table>`; }
+  if(kind!=="items"){ const sub=disc?G.sub:G.list; const extra=disc?G.extra:0; const base=sub-extra+(disc?G.adj:0)+G.ins; const vat=o.tax==="Not Vat"?0:Math.round(base*7)/100; const tot=Math.round((base+vat)*100)/100;
+    const showSame=disc; // with discount: exact totals; without: list-price view as in the old "Not Discount" print
+    h+=`<table style="margin-left:auto;margin-top:10px;font-size:12px;border-collapse:collapse;min-width:280px">${disc?`<tr><td ${td}>List</td><td ${tdr}>${money(G.list)}</td></tr><tr><td ${td}>Discount</td><td ${tdr}>${money(G.disc)}</td></tr>`:""}<tr><td ${td}>Sub total</td><td ${tdr}>${money(sub)}</td></tr>${extra?`<tr><td ${td}>Extra discount</td><td ${tdr}>-${money(extra)}</td></tr>`:""}${disc&&G.adj?`<tr><td ${td}>Adjustment</td><td ${tdr}>${money(G.adj)}</td></tr>`:""}${G.ins?`<tr><td ${td}>Insurance fee</td><td ${tdr}>${money(G.ins)}</td></tr>`:""}<tr><td ${td}>VAT 7%</td><td ${tdr}>${money(showSame?G.vat:vat)}</td></tr><tr><td ${td}><b>Total</b></td><td ${tdr}><b>${money(showSame?G.total:tot)}</b></td></tr></table>`;
+    if(rem) h+=`<div style="margin-top:14px;font-size:11px;border-top:1px solid #ccc;padding-top:6px">${sanitizeHtml(rem.html)}</div>`;
+    if(ft) h+=`<div style="margin-top:6px;font-size:11px">${sanitizeHtml(ft.html)}</div>`;
+    h+=`<div style="display:flex;justify-content:space-between;gap:30px;margin-top:40px;font-size:12px"><div style="flex:1;border-top:1px solid #111;text-align:center;padding-top:4px">Customer</div><div style="flex:1;border-top:1px solid #111;text-align:center;padding-top:4px">${esc(c.name||"Lighthouse Film Service")}</div></div>`; }
+  return h+`</div>`; }
+/* Templates came from the old system as HTML. Keep only basic text tags. */
+function sanitizeHtml(html){ const d=document.createElement("div"); d.innerHTML=String(html||""); const ok=new Set(["P","BR","B","STRONG","I","EM","U","UL","OL","LI","SPAN","DIV"]); const walk=n=>{ for(const c of [...n.childNodes]){ if(c.nodeType===1){ if(!ok.has(c.tagName)){ c.replaceWith(document.createTextNode(c.textContent)); continue; } for(const a of [...c.attributes]) c.removeAttribute(a.name); walk(c);} else if(c.nodeType!==3) c.remove(); } }; walk(d); return d.innerHTML; }
+async function downloadDoc(o){ if(!S.dl){ toast(t("dlUnavailable")); return; } const name=`${o.no}-${S.docKind==="quote"?"quotation":S.docKind==="draft"?"draft-inv":"item-list"}${S.docKind!=="items"&&!S.docDisc?"-nodisc":""}.html`;
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(o.no)}</title><style>@page{size:A4;margin:12mm}body{margin:0;padding:16px}</style></head><body>${docBody(o,S.lines||[],S.docKind,S.docDisc)}</body></html>`;
+  try{ await S.dl.save({filename:name,data:html}); }catch(e){ toast(e&&e.code==="declined"?t("dlDeclined"):t("dlUnavailable")); } }
+
+/* ================= line editing ================= */
+let saveT=0;
+function linesChanged(){ syncChildren(S.lines); scheduleRender(); clearTimeout(saveT); saveT=setTimeout(saveLines,500); }
+async function saveLines(){ const o=S.orders.get(S.openId); if(!o||!S.lines||!S.lock.mine) return; const items=clone(S.lines); const T=orderTotals(items,o);
+  await put("lines/"+o.id,{items,updatedAt:nowISO()});
+  await upd("orders/"+o.id,{totals:T,usage:usageOf(items),rev:(+o.rev||0)+1,updatedAt:nowISO(),updatedBy:S.me?.id||null,log:logged(o,"items")}); }
+function newLineFromProduct(o,p){ const cu=[...S.cust.values()].find(c=>c.name===o.customerName); const start=o.useStart||o.ship, end=o.useEnd||o.ret;
+  return {k:uid(),t:p.type,pid:p.id,code:p.code,desc:p.desc,list:+p.price||0,qty:1,days:chargeDays(start,end,o.rentType,o.dpw)||1,disc:defaultDisc(p,cu?cu.disc:0),foc:false,sb:false,start,end,parent:null,remark:""}; }
+
+/* ================= STORE TAB ================= */
+function headStore(){ return `<div class="view-head"><h1>${esc(t("storeT"))}</h1></div>`; }
+function bodyStore(){ if(!S.loaded.orders) return loading(); const td=today(), wk=addDays(td,7); const all=ordersArr();
+  const out=all.filter(o=>["Order","Approve"].includes(o.status)&&o.ship&&o.ship<=wk).sort((a,b)=>a.ship.localeCompare(b.ship));
+  const back=all.filter(o=>o.status==="Shipped"&&o.ret&&o.ret<=wk).sort((a,b)=>a.ret.localeCompare(b.ret));
+  const card=(o,d,label)=>`<tr class="click" data-act="openOrder" data-id="${esc(o.id)}"><td class="num ${d<td?"bad":""}">${esc(fmtD(d))}${d<td?` · ${esc(t("overdue"))}`:d===td?" · "+esc(LANG==="th"?"วันนี้":"Today"):""}</td><td class="mono">${esc(o.no)}</td><td class="ellip">${esc(o.jobTitle)}</td><td class="ellip">${esc(o.customerName)}</td><td>${esc(deptName(o.dept))}</td><td><span class="tape ${stCls(o.status)}">${esc(o.status)}</span></td></tr>`;
+  const tbl=(rows,dk)=>rows.length?`<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>${esc(t("c_no"))}</th><th>${esc(t("c_title"))}</th><th>${esc(t("c_cust"))}</th><th>${esc(t("c_dept"))}</th><th>${esc(t("c_status"))}</th></tr></thead><tbody>${rows.map(o=>card(o,o[dk])).join("")}</tbody></table></div>`:`<p class="muted">${esc(t("nothing"))}</p>`;
+  return `<section class="sec"><h3>${esc(t("outToday"))}<small>${esc(t("next7"))}</small></h3>${tbl(out,"ship")}</section><section class="sec"><h3>${esc(t("backToday"))}<small>${esc(t("next7"))}</small></h3>${tbl(back,"ret")}</section>`; }
+
+/* ================= CATALOG ================= */
+function headCat(){ return `<div class="view-head"><h1>${esc(t("catT"))}</h1>${isR("admin","store")?`<button class="btn primary" type="button" data-act="newItem">${esc(t("itemNew"))}</button>`:""}</div>
+<div class="row"><input class="inp" id="cq" type="search" style="max-width:380px" placeholder="${esc(t("searchCat"))}" value="${esc(S.cq)}"><select class="inp" id="ctype" style="width:auto"><option value="all">${esc(t("allTypes"))}</option>${TYPES.filter(x=>x.id!==5&&x.id!==7).map(x=>`<option value="${x.id}" ${String(S.ctype)===String(x.id)?"selected":""}>${esc(x.k)}</option>`).join("")}</select><select class="inp" id="cdept" style="width:auto"><option value="all">${esc(t("allDepts"))}</option>${DEPTS.map(d=>`<option value="${d.id}" ${String(S.cdept)===String(d.id)?"selected":""}>${esc(d.name)}</option>`).join("")}</select></div>`; }
+function bodyCat(){ if(!S.loaded.cat) return loading(); const q=S.cq.trim().toLowerCase();
+  const list=[...S.cat.values()].filter(p=>(S.ctype==="all"||p.type===+S.ctype)&&(S.cdept==="all"||p.dept===+S.cdept)&&(!q||String(p.code).toLowerCase().includes(q)||String(p.desc).toLowerCase().includes(q))).sort((a,b)=>String(a.code).localeCompare(String(b.code)));
+  if(!list.length) return `<div class="empty"><p>${esc(t("noMatch"))}</p></div>`;
+  const td=today();
+  return `<p class="muted small">${list.length.toLocaleString()} / ${S.cat.size.toLocaleString()}</p><div class="tbl-wrap"><table><thead><tr><th>${esc(t("i_code"))}</th><th>${esc(t("i_desc"))}</th><th>${esc(t("c_dept"))}</th><th>Type</th><th class="r">${esc(t("price"))}</th><th class="r">${esc(t("maxDisc"))}</th><th class="r">${esc(t("stock"))}</th><th class="r">${esc(t("outQ"))}</th></tr></thead><tbody>${list.slice(0,S.climit).map(p=>{const out=STOCKED_TYPES.includes(p.type)?bookedQty(p.id,td,td,ordersArr(),null,td,["Shipped"]):0; return `<tr class="click" data-act="openItem" data-id="${p.id}"><td class="mono">${esc(p.code)}</td><td>${esc(p.desc)}${p.kit&&p.kit.length?` <span class="tag">${esc(t("kit"))} ${p.kit.length}</span>`:""}${p.edited?` <span class="tag">${esc(t("edited"))}</span>`:""}</td><td>${esc(deptName(p.dept))}</td><td class="small">${esc(typeName(p.type))}</td><td class="r num">${money(p.price)}</td><td class="r num">${p.discountable?(p.maxDisc||"–"):esc(t("no"))}</td><td class="r num">${STOCKED_TYPES.includes(p.type)?p.stock:"–"}</td><td class="r num">${out||""}</td></tr>`;}).join("")}</tbody></table></div>${list.length>S.climit?`<button class="btn" type="button" data-act="cmore">${esc(t("showMore",{n:Math.min(200,list.length-S.climit)}))}</button>`:""}`; }
+function sheetItem(){ const p=S.openId?S.cat.get(+S.openId):null; const ed=isR("admin","store"); const v=p||{type:1,dept:1,price:0,discountable:1,maxDisc:0,stock:0,kit:[]};
+  let h=`<div class="sheet-head"><h2>${esc(p?(ed?t("itemEdit"):p.desc):t("itemNew"))}</h2>${closeBtn()}</div>`;
+  const dis=ed?"":"disabled";
+  h+=`<form class="sec" id="itemForm"><div class="grid"><label class="field"><span>${esc(t("i_code"))}</span><input class="inp" id="it-code" value="${esc(v.code)}" ${dis} required></label><label class="field span2"><span>${esc(t("i_desc"))}</span><input class="inp" id="it-desc" value="${esc(v.desc)}" ${dis} required></label>
+  <label class="field"><span>Type</span><select class="inp" id="it-type" ${dis}>${TYPES.filter(x=>x.id!==5&&x.id!==7).map(x=>`<option value="${x.id}" ${v.type===x.id?"selected":""}>${esc(x.k)}</option>`).join("")}</select></label>
+  <label class="field"><span>${esc(t("c_dept"))}</span><select class="inp" id="it-dept" ${dis}>${DEPTS.map(d=>`<option value="${d.id}" ${v.dept===d.id?"selected":""}>${esc(d.name)}</option>`).join("")}</select></label>
+  <label class="field"><span>${esc(t("price"))}</span><input class="inp" id="it-price" type="number" min="0" step="0.01" value="${esc(v.price)}" ${dis}></label>
+  <label class="field"><span>${esc(t("discountable"))}</span><select class="inp" id="it-discountable" ${dis}><option value="1" ${v.discountable?"selected":""}>${esc(t("yes"))}</option><option value="0" ${!v.discountable?"selected":""}>${esc(t("no"))}</option></select></label>
+  <label class="field"><span>${esc(t("maxDisc"))} (0 = no cap)</span><input class="inp" id="it-maxDisc" type="number" min="0" max="100" value="${esc(v.maxDisc)}" ${dis}></label>
+  <label class="field"><span>${esc(t("stock"))}</span><input class="inp" id="it-stock" type="number" min="0" value="${esc(v.stock)}" ${dis}></label></div>
+  <div class="field"><span>${esc(t("kit"))}</span>${(v.kit||[]).length?`<div class="results">${v.kit.map(([cid,ratio],i)=>{const c=S.cat.get(cid);return `<div class="res"><span><span class="mono">${esc(c?c.code:cid)}</span> ${esc(c?c.desc:"")} × ${ratio} ${esc(t("ratio"))}</span>${ed?`<button class="btn sm ghost" type="button" data-act="rmPart" data-i="${i}">${esc(t("remove"))}</button>`:""}</div>`;}).join("")}</div>`:`<span class="muted small">—</span>`}${ed?`<input class="inp" id="kq" type="search" placeholder="${esc(t("addPart"))}: ${esc(t("searchItems"))}" value="${esc(S.kq)}" autocomplete="off"><div id="kresults">${kitResults()}</div>`:""}</div>
+  ${ed?`<div class="row"><button class="btn primary" type="submit">${esc(t("save"))}</button></div>`:""}</form>`;
+  return h; }
+let kitDraft=null;
+function kitResults(){ const q=S.kq.trim().toLowerCase(); if(!q) return ""; const list=[]; for(const p of S.cat.values()){ if(String(p.code).toLowerCase().includes(q)||String(p.desc).toLowerCase().includes(q)){list.push(p); if(list.length>=15) break;} }
+  return `<div class="results">${list.map(p=>`<div class="res"><span><span class="mono">${esc(p.code)}</span> ${esc(p.desc)}</span><button class="btn sm" type="button" data-act="addPart" data-pid="${p.id}">${esc(t("add"))}</button></div>`).join("")}</div>`; }
+
+/* ================= CUSTOMERS ================= */
+function headCust(){ return `<div class="view-head"><h1>${esc(t("custT"))}</h1>${isR("admin","sale")?`<button class="btn primary" type="button" data-act="newCust">${esc(t("custNew"))}</button>`:""}</div><input class="inp" id="kq2" type="search" style="max-width:420px" placeholder="${esc(t("searchCust"))}" value="${esc(S.kq2||"")}">`; }
+function bodyCust(){ if(!S.loaded.cust) return loading(); const q=(S.kq2||"").trim().toLowerCase();
+  const list=[...S.cust.values()].filter(c=>!q||[c.name,c.code,c.tax].some(v=>String(v||"").toLowerCase().includes(q))).sort((a,b)=>String(a.name).localeCompare(String(b.name),"th"));
+  if(!list.length) return `<div class="empty"><p>${esc(t("noMatch"))}</p></div>`;
+  return `<p class="muted small">${list.length.toLocaleString()} / ${S.cust.size.toLocaleString()}</p><div class="tbl-wrap"><table><thead><tr><th>${esc(t("c_code"))}</th><th>${esc(t("c_name"))}</th><th>${esc(t("c_tax"))}</th><th>${esc(t("c_type"))}</th><th class="r">${esc(t("c_disc"))}</th><th>${esc(t("c_phone"))}</th></tr></thead><tbody>${list.slice(0,S.klimit).map(c=>`<tr class="click" data-act="openCust" data-id="${c.id}"><td class="mono">${esc(c.code)}</td><td>${esc(c.name)}${c.edited?` <span class="tag">${esc(t("edited"))}</span>`:""}</td><td class="mono">${esc(c.tax)}</td><td>${esc(c.type)}</td><td class="r num">${esc(c.disc??"")}</td><td>${esc(c.phone)}</td></tr>`).join("")}</tbody></table></div>${list.length>S.klimit?`<button class="btn" type="button" data-act="kmore">${esc(t("showMore",{n:Math.min(200,list.length-S.klimit)}))}</button>`:""}`; }
+function sheetCust(){ const c=S.openId?S.cust.get(S.openId):null; const ed=isR("admin","sale"); const v=c||{disc:0,type:"TVC"}; const dis=ed?"":"disabled";
+  return `<div class="sheet-head"><h2>${esc(c?c.name:t("custNew"))}</h2>${closeBtn()}</div><form class="sec" id="custForm"><div class="grid"><label class="field"><span>${esc(t("c_code"))}</span><input class="inp" id="cu-code" value="${esc(v.code)}" ${dis}></label><label class="field span2"><span>${esc(t("c_name"))}</span><input class="inp" id="cu-name" value="${esc(v.name)}" ${dis} required></label><label class="field"><span>${esc(t("c_tax"))}</span><input class="inp" id="cu-tax" value="${esc(v.tax)}" ${dis}></label><label class="field"><span>${esc(t("c_type"))}</span><select class="inp" id="cu-type" ${dis}>${JOB_TYPES.map(x=>`<option ${v.type===x?"selected":""}>${x}</option>`).join("")}</select></label><label class="field"><span>${esc(t("c_disc"))}</span><input class="inp" id="cu-disc" type="number" min="0" max="100" value="${esc(v.disc)}" ${dis}></label><label class="field"><span>${esc(t("c_phone"))}</span><input class="inp" id="cu-phone" value="${esc(v.phone)}" ${dis}></label><label class="field spanall"><span>${esc(t("c_addr"))}</span><textarea class="inp" id="cu-addr" ${dis}>${esc(v.addr)}</textarea></label></div>${ed?`<div class="row"><button class="btn primary" type="submit">${esc(t("save"))}</button></div>`:""}</form>`; }
+
+/* ================= CREW ================= */
+function headCrew(){ return `<div class="view-head"><h1>${esc(t("crewT"))}</h1>${isR("admin")?`<button class="btn" type="button" data-act="idsOpen">${esc(t("idsImport"))}</button>`:""}</div><input class="inp" id="rq" type="search" style="max-width:420px" placeholder="${esc(t("searchCrew"))}" value="${esc(S.rq)}">`; }
+function bodyCrew(){ if(!S.loaded.cat) return loading(); const q=S.rq.trim().toLowerCase(); const rows=[];
+  for(const c of S.crew){ const name=[c.first,c.last].filter(Boolean).join(" ")||c.nick; for(const p of c.pos||[]){ if(q&&![name,c.code,p.name,p.code,c.nick].some(v=>String(v||"").toLowerCase().includes(q))) continue; rows.push({c,p,name}); } }
+  if(!S.crew.length) return `<div class="empty"><p>${esc(t("loading"))}</p></div>`; if(!rows.length) return `<div class="empty"><p>${esc(t("noMatch"))}</p></div>`;
+  const showCost=isR("admin","crew","accounting"); const showId=isR("admin")&&S.idsLoaded;
+  return `<p class="muted small">${rows.length.toLocaleString()}${showId?` · ${esc(t("idsCount",{n:Object.keys(S.ids).length}))}`:""}</p><div class="tbl-wrap"><table><thead><tr><th>${esc(t("i_pos"))}</th><th>Code</th><th>${esc(t("i_person"))}</th><th>${esc(t("c_dept"))}</th><th class="r">${esc(t("p_price"))}</th><th class="r">${esc(t("p_ot"))}</th>${showCost?`<th class="r">${esc(t("p_cost"))}</th>`:""}${showId?`<th>${esc(t("natId"))}</th>`:""}</tr></thead><tbody>${rows.slice(0,400).map(({c,p,name})=>`<tr><td>${esc(p.name)}</td><td class="mono">${esc(p.code)}</td><td>${esc(name)}${c.nick&&name!==c.nick?` <span class="muted">(${esc(c.nick)})</span>`:""}</td><td>${esc(p.dept)}</td><td class="r num">${money(p.price)}</td><td class="r num">${money(p.priceOt)}</td>${showCost?`<td class="r num">${money(p.cost)}</td>`:""}${showId?`<td class="mono">${S.ids[c.id]?`${esc(S.reveal.has(String(c.id))?fmtId(S.ids[c.id]):maskId(S.ids[c.id]))} <button class="btn sm ghost" type="button" data-act="reveal" data-id="${esc(c.id)}">${esc(S.reveal.has(String(c.id))?t("hide"):t("show"))}</button>`:`<span class="muted">—</span>`}</td>`:""}</tr>`).join("")}</tbody></table></div>`; }
+/* Thai national ID: 13 digits, last digit is a mod-11 checksum. */
+function thaiIdOk(s){ s=String(s||"").replace(/\D/g,""); if(s.length!==13) return false; let sum=0; for(let i=0;i<12;i++) sum+=(+s[i])*(13-i); return ((11-sum%11)%10)===+s[12]; }
+const digits=s=>String(s||"").replace(/\D/g,"");
+function fmtId(s){ const d=digits(s); return d.length===13?`${d[0]}-${d.slice(1,5)}-${d.slice(5,10)}-${d.slice(10,12)}-${d[12]}`:d; }
+function maskId(s){ const d=digits(s); return d.length>=4?`x-xxxx-xxxxx-${d.slice(-3,-1)}-${d.slice(-1)}`:"x"; }
+function crewName(c){ return [c.first,c.last].filter(Boolean).join(" ")||c.nick||""; }
+function parseIds(txt){ const byCode=new Map(), byId=new Map(), byName=new Map(); for(const c of S.crew){ if(c.code) byCode.set(String(c.code).trim().toLowerCase(),c); byId.set(String(c.id),c); const n=crewName(c).replace(/\s+/g," ").trim().toLowerCase(); if(n) byName.set(n,c); }
+  const out=[]; for(const raw of String(txt).split(/\r?\n/)){ const line=raw.trim(); if(!line) continue; const cols=(line.includes("\t")?line.split("\t"):line.split(",")).map(x=>x.trim()); if(cols.length<2) { out.push({raw:line,ok:false,why:"cols"}); continue; }
+    const key=cols[0], id=digits(cols[cols.length-1]); if(/^(code|รหัส|crew|name|ชื่อ)/i.test(key)&&!id) continue;
+    const c=byCode.get(key.toLowerCase())||byId.get(key)||byName.get(key.replace(/\s+/g," ").toLowerCase()); out.push({key,c,id,valid:thaiIdOk(id),ok:!!c&&thaiIdOk(id),why:!c?"nomatch":!thaiIdOk(id)?"checksum":""}); }
+  return out; }
+function sheetIds(){ const rows=S.idRows||[]; const good=rows.filter(r=>r.ok);
+  return `<div class="sheet-head"><h2>${esc(t("idsImport"))}</h2>${closeBtn()}</div><section class="sec"><p class="muted" style="margin:0">${esc(t("idsHelp"))}</p>
+  <textarea class="inp mono" id="idsText" style="min-height:160px" placeholder="1334G5, 1-2345-67890-12-3"></textarea><input type="file" id="idsFile" accept=".csv,.txt,text/csv,text/plain">
+  ${rows.length?`<div class="tbl-wrap"><table><thead><tr><th>${esc(t("idsKey"))}</th><th>${esc(t("i_person"))}</th><th>${esc(t("natId"))}</th><th></th></tr></thead><tbody>${rows.slice(0,300).map(r=>`<tr class="${r.ok?"":"bad"}"><td class="mono">${esc(r.key||r.raw)}</td><td>${esc(r.c?crewName(r.c):"")}</td><td class="mono">${esc(r.id?maskId(r.id):"")}</td><td class="small">${r.ok?`<span class="good">✓</span>`:esc(t("ids_"+r.why))}</td></tr>`).join("")}</tbody></table></div>`:""}
+  <button class="btn primary" type="button" data-act="idsSave" ${good.length?"":"disabled"}>${esc(t("idsSave",{n:good.length}))}</button><p class="muted small" style="margin:0">${esc(t("idsPrivacy"))}</p></section>`; }
+
+/* crew list with ID numbers for a client's NDA / set-access forms */
+async function downloadCrewIds(o){ if(!S.dl){toast(t("dlUnavailable"));return;} const L=(S.lines||[]).filter(l=>[5,7].includes(l.t)&&l.crewId);
+  const byId=new Map(S.crew.map(c=>[String(c.id),c])); const seen=new Set(); const rows=[];
+  for(const l of L){ if(seen.has(String(l.crewId))) continue; seen.add(String(l.crewId)); const c=byId.get(String(l.crewId)); rows.push([c?crewName(c):l.desc, String(l.desc||"").split(" · ")[0], fmtD(l.start)+" - "+fmtD(l.end), S.ids[l.crewId]?fmtId(S.ids[l.crewId]):""]); }
+  if(!rows.length){ toast(t("noCrewOnJob")); return; }
+  const q=v=>`"${String(v).replace(/"/g,'""')}"`; const csv="\uFEFF"+[["Job",o.no+" "+o.jobTitle],["Customer",o.customerName],[],["Name","Position","Dates","National ID"],...rows].map(r=>r.map(q).join(",")).join("\r\n");
+  try{ await S.dl.save({filename:`${o.no}-crew-list.csv`,data:csv}); await upd("orders/"+o.id,{updatedAt:nowISO(),log:logged(o,"crewIds")}); }catch(e){ toast(e&&e.code==="declined"?t("dlDeclined"):t("dlUnavailable")); } }
+
+/* ================= REPAIRS ================= */
+function headRep(){ return `<div class="view-head"><h1>${esc(t("repT"))}</h1></div>`; }
+function bodyRep(){ const list=[...S.repairs.values()].sort((a,b)=>String(b.at).localeCompare(String(a.at))); if(!list.length) return `<div class="empty"><p>${esc(t("noRepairs"))}</p></div>`;
+  const can=isR("admin","store"); const ST=["Waiting","Repairing","Completed","Lost"], L={Waiting:"rp_wait",Repairing:"rp_doing",Completed:"rp_done",Lost:"rp_lost"};
+  return `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>${esc(t("i_code"))}</th><th>${esc(t("i_desc"))}</th><th class="r">${esc(t("i_qty"))}</th><th>${esc(t("rp_from"))}</th><th>${esc(t("c_status"))}</th><th>${esc(t("h_note"))}</th></tr></thead><tbody>${list.map(r=>`<tr><td class="num">${esc(fmtD(r.at))}</td><td class="mono">${esc(r.code)}</td><td>${esc(r.desc)}</td><td class="r num">${+r.qty||0}</td><td class="mono">${esc(r.orderNo||"")}</td><td>${can?`<select class="inp" style="width:auto" data-rep="${esc(r.id)}">${ST.map(s=>`<option value="${s}" ${r.status===s?"selected":""}>${esc(t(L[s]))}</option>`).join("")}</select>`:esc(t(L[r.status]||"rp_wait"))}</td><td>${esc(r.note||"")}</td></tr>`).join("")}</tbody></table></div>`; }
+
+/* ================= TEAM ================= */
+const ROLES=["sale","store","accounting","crew"];
+function headTeam(){ return `<div class="view-head"><h1>${esc(t("team"))}</h1></div><p class="muted" style="margin:0;max-width:70ch">${esc(t("teamHelp"))}</p><section class="sec"><h3>${esc(t("addPerson"))}</h3><input class="inp" id="teamQ" type="search" placeholder="${esc(t("searchPeople"))}" autocomplete="off"><div id="teamHits"></div></section>`; }
+function bodyTeam(){ if(!S.loaded.team) return loading(); const rows=[...S.team.values()].filter(r=>r.id!==S.me?.id).sort((a,b)=>pname(a.id).localeCompare(pname(b.id)));
+  const me=S.me?`<div class="person"><img alt="" src="${esc(S.me.avatarUrl)}"><span class="nm"><b>${esc(S.me.name||t("you"))}</b></span><span class="tape" style="--tc:var(--ink);--tf:var(--bg)">${esc(t("alwaysAdmin"))}</span></div>`:"";
+  return `<section class="sec"><h3>${esc(t("members"))}<small>${rows.length}</small></h3>${me}${rows.map(r=>`<div class="person"><img alt="" src="${esc(S.prof[r.id]?.avatarUrl||"")}"><span class="nm">${esc(pname(r.id))}</span><select class="inp" style="width:auto" data-role-uid="${esc(r.id)}">${ROLES.map(x=>`<option value="${x}" ${r.role===x?"selected":""}>${esc(t("r_"+x))}</option>`).join("")}</select><button class="btn sm ghost" type="button" data-act="teamRemove" data-uid="${esc(r.id)}">${esc(S.confirm==="tm:"+r.id?t("cancelSure"):t("remove"))}</button></div>`).join("")||`<p class="muted" style="margin:0">${esc(t("noMembers"))}</p>`}</section>
+  <section class="sec"><h3>${esc(t("roleGuide"))}</h3><ul style="margin:0;padding-left:18px">${["admin",...ROLES].map(r=>`<li><b>${esc(t("r_"+r))}</b> · ${esc(t("g_"+r))}</li>`).join("")}</ul></section>`; }
+async function teamSearch(q){ const box=$("#teamHits"); if(!box||!S.user) return; const hits=(await S.user.search(q)).filter(h=>h.id!==S.me?.id); if($("#teamQ")?.value!==q&&q!=="") return;
+  box.innerHTML=hits.length?`<div class="results">${hits.map(h=>`<div class="res"><span class="row"><img alt="" src="${esc(h.avatarUrl)}" style="width:24px;height:24px;border-radius:50%"><span class="hn"></span></span>${S.team.has(h.id)?`<span class="muted">${esc(t("r_"+S.team.get(h.id).role))}</span>`:`<button class="btn sm" type="button" data-act="teamAdd" data-uid="${esc(h.id)}">${esc(t("add"))}</button>`}</div>`).join("")}</div>`:(q?`<p class="muted">${esc(t("noSearch"))}</p>`:"");
+  box.querySelectorAll(".hn").forEach((el,i)=>{el.textContent=hits[i].name;}); }
+
+/* ================= CEO COCKPIT ================= */
+const K={lines:null,loading:false,at:null,filter:"all",sec:"problems"};
+async function loadCockpit(force){ if(!S.db||K.loading||(K.lines&&!force)) return; K.loading=true; renderBodyOnly();
+  try{ const s=await S.db.collection("lines").limit(1000).get(); const m={}; for(const d of s.docs) m[d.id]=d.data(); K.lines=m; K.at=new Date(); K.n=S.orders.size; }catch(e){ toast(t("errGeneric")); }
+  K.loading=false; scheduleRender(); }
+const PK={overbook:["pk_overbook","high"],overdue:["pk_overdue","high"],crew:["pk_crew","high"],discount:["pk_discount","high"],mismatch:["pk_mismatch","high"],stale:["pk_stale","med"],missing:["pk_missing","med"],price:["pk_price","low"],adjust:["pk_adjust","low"]};
+function headCock(){ return `<div class="view-head"><h1>${esc(t("cockpit"))}</h1><div class="row"><span class="muted small">${esc(t("dataAsOf"))} ${esc(S.cfg.sync?.at?new Date(S.cfg.sync.at).toLocaleString(LANG==="th"?"th-TH":"en-GB"):"—")}</span><button class="btn sm" type="button" data-act="kRefresh">${esc(t("refresh"))}</button></div></div>
+<div class="seg" role="tablist">${["problems","money","assets"].map(k=>`<button type="button" data-act="kSec" data-k="${k}" aria-pressed="${K.sec===k}">${esc(t("k_"+k))}</button>`).join("")}</div>`; }
+function bodyCock(){ if(!S.loaded.orders||!S.loaded.cat) return loading(); if(!K.lines||(K.n!==S.orders.size&&!K.loading)){ loadCockpit(true); if(!K.lines) return loading(); }
+  const all=[...S.orders.values()]; const R=diagnose(all,K.lines,S.cat,today());
+  if(K.sec==="money") return cockMoney(R); if(K.sec==="assets") return cockAssets(R);
+  const cnt={}; for(const p of R.problems) cnt[p.kind]=(cnt[p.kind]||0)+1;
+  const order=Object.keys(PK).filter(k=>cnt[k]);
+  let h=`<div class="stats">${order.map(k=>`<button type="button" class="stat" style="--tc:var(${PK[k][1]==="high"?"--danger":PK[k][1]==="med"?"--warn":"--muted"})" data-act="kFilter" data-k="${k}" aria-pressed="${K.filter===k}"><b>${cnt[k]}</b><span>${esc(t(PK[k][0]))}</span></button>`).join("")}<button type="button" class="stat" data-act="kFilter" data-k="all" aria-pressed="${K.filter==="all"}"><b>${R.problems.length}</b><span>${esc(t("f_all"))}</span></button></div>`;
+  if(!R.problems.length) return h+`<div class="empty"><h2>${esc(t("noProblems"))}</h2></div>`;
+  const rank={high:0,med:1,low:2}; const list=R.problems.filter(p=>K.filter==="all"||p.kind===K.filter).sort((a,b)=>rank[PK[a.kind][1]]-rank[PK[b.kind][1]]);
+  h+=`<div class="tbl-wrap"><table><thead><tr><th>${esc(t("k_type"))}</th><th>${esc(t("c_no"))}</th><th>${esc(t("k_detail"))}</th></tr></thead><tbody>`;
+  for(const p of list){ const jobs=p.no?[p.no]:(p.nos||[]); 
+    h+=`<tr><td style="white-space:nowrap"><span class="tag" style="border-color:var(${PK[p.kind][1]==="high"?"--danger":PK[p.kind][1]==="med"?"--warn":"--muted"});color:var(${PK[p.kind][1]==="high"?"--danger":PK[p.kind][1]==="med"?"--warn":"--muted"})">${esc(t(PK[p.kind][0]))}</span></td><td>${jobs.map(n=>{const o=S.orders.get(n);return o?`<button class="btn sm ghost mono" type="button" data-act="openOrder" data-id="${esc(n)}">${esc(n)}</button>`:`<span class="mono">${esc(n)}</span>`;}).join(" ")}</td><td>${esc(probText(p))}</td></tr>`; }
+  return h+`</tbody></table></div><p class="muted small">${esc(t("cockNote"))}</p>`; }
+function probText(p){ const o=p.no?S.orders.get(p.no):null; const who=o?` · ${o.customerName||""}`:"";
+  switch(p.kind){
+  case"overbook": return t("d_overbook",{code:p.code,desc:p.desc,need:p.need,stock:p.stock,from:fmtD(p.from),to:fmtD(p.to)});
+  case"overdue": return t("d_overdue",{d:fmtD(p.ret),n:p.days})+who;
+  case"stale": return t("d_stale",{s:p.status,d:fmtD(p.ret),n:p.days})+who;
+  case"mismatch": return t("d_mismatch",{a:money(p.legacy),b:money(p.lines)});
+  case"adjust": return t("d_adjust",{a:money(p.adjust)})+who;
+  case"missing": return t("d_missing",{m:p.miss.join(", ")});
+  case"discount": return p.lines.map(l=>`${l.code} ${l.disc}% (${l.rule})`).join(" · ")+who;
+  case"price": return p.lines.slice(0,4).map(l=>`${l.code} ${money(l.list)} vs ${money(l.catalog)}`).join(" · ")+(p.lines.length>4?` +${p.lines.length-4}`:"")+who;
+  case"crew": return t("d_crew",{n:p.name,from:fmtD(p.from),to:fmtD(p.to)});
+  } return ""; }
+function bar(v,max){ const w=max>0?Math.max(2,Math.round(100*v/max)):0; return `<div style="height:6px;background:var(--sunk);border-radius:3px"><div style="height:6px;width:${w}%;background:var(--accent);border-radius:3px"></div></div>`; }
+function cockMoney(R){ const M=R.money; const tile=(k,o,tc)=>`<div class="stat" style="--tc:var(${tc});cursor:default"><b class="num" style="font-size:22px">฿${Math.round(o.value).toLocaleString()}</b><span>${esc(t(k))} · ${o.n} ${esc(t("jobsN"))}</span></div>`;
+  let h=`<div class="stats">${tile("m_quotes",M.quotes,"--s-quote")}${tile("m_confirmed",M.confirmed,"--s-order")}${tile("m_onrent",M.onRent,"--s-shipped")}${tile("m_tobill",M.toBill,"--s-returned")}</div><p class="muted small">${esc(t("exVat"))}</p>`;
+  const sales=Object.entries(M.bySale).filter(([,v])=>v.jobs).sort((a,b)=>b[1].net-a[1].net); const mx=Math.max(...sales.map(([,v])=>v.net),1);
+  h+=`<section class="sec"><h3>${esc(t("m_bySale"))}<small>${esc(t("m_bySaleNote"))}</small></h3><div class="tbl-wrap"><table><thead><tr><th>${esc(t("h_sale"))}</th><th class="r">${esc(t("jobsN"))}</th><th class="r">${esc(t("m_net"))}</th><th style="width:30%"></th><th class="r">${esc(t("m_avgDisc"))}</th></tr></thead><tbody>${sales.map(([k,v])=>{const pct=v.list?Math.round(100*v.disc/v.list):0;return `<tr><td>${esc(k)}</td><td class="r num">${v.jobs}</td><td class="r num">${money(v.net)}</td><td>${bar(v.net,mx)}</td><td class="r num ${pct>=60?"bad":pct>=45?"warn":""}">${pct}%</td></tr>`;}).join("")}</tbody></table></div></section>`;
+  const cust=Object.entries(M.byCustomer).sort((a,b)=>b[1].net-a[1].net).slice(0,12); const mc=Math.max(...cust.map(([,v])=>v.net),1);
+  h+=`<section class="sec"><h3>${esc(t("m_topCust"))}</h3><div class="tbl-wrap"><table><tbody>${cust.map(([k,v])=>`<tr><td>${esc(k)}</td><td class="r num">${v.jobs}</td><td class="r num">${money(v.net)}</td><td style="width:30%">${bar(v.net,mc)}</td></tr>`).join("")}</tbody></table></div></section>`;
+  return h; }
+function cockAssets(R){ const A=R.assets; const tbl=(rows,cols)=>`<div class="tbl-wrap"><table><tbody>${rows.map(r=>`<tr>${cols.map(c=>`<td class="${c.r?"r num":""}">${esc(c.f(r))}</td>`).join("")}</tr>`).join("")||`<tr><td class="muted">—</td></tr>`}</tbody></table></div>`;
+  return `<section class="sec"><h3>${esc(t("a_top"))}<small>${esc(t("a_topNote"))}</small></h3>${tbl(A.top,[{f:r=>r.code},{f:r=>r.desc},{r:1,f:r=>r.jobs+" "+t("jobsN")},{r:1,f:r=>money(r.net)}])}</section>
+  <section class="sec"><h3>${esc(t("a_sub"))}<small>${esc(t("a_subNote"))}</small></h3>${tbl(A.subrent,[{f:r=>r.code},{f:r=>r.desc},{r:1,f:r=>r.jobs+" "+t("jobsN")},{r:1,f:r=>money(r.net)}])}</section>
+  <section class="sec"><h3>${esc(t("a_idle"))}<small>${esc(t("a_idleNote",{n:A.idleCount}))}</small></h3>${tbl(A.idleTop,[{f:r=>r.code},{f:r=>r.desc},{r:1,f:r=>"× "+r.stock},{r:1,f:r=>money(r.price)+t("perDay")}])}</section>`; }
+
+/* ================= SETTINGS ================= */
+function headSet(){ return `<div class="view-head"><h1>${esc(t("setT"))}</h1></div>`; }
+function bodySet(){ const c=S.cfg.company||{}; return `<form class="sec" id="setForm"><div class="grid"><label class="field span2"><span>${esc(t("company"))}</span><input class="inp" id="s-name" value="${esc(c.name||"Lighthouse Film Service")}"></label><label class="field"><span>${esc(t("companyTax"))}</span><input class="inp" id="s-tax" value="${esc(c.tax||"")}"></label><label class="field spanall"><span>${esc(t("companyAddr"))}</span><textarea class="inp" id="s-addr">${esc(c.addr||"")}</textarea></label></div><div class="row"><button class="btn primary" type="submit">${esc(t("save"))}</button></div></form>
+  <section class="sec"><h3>${esc(t("remarks"))}<small>${(S.cfg.remarks||[]).length}</small></h3>${(S.cfg.remarks||[]).map(r=>`<details><summary>${esc(r.name)}${r.def?" ★":""}</summary><div class="small" style="padding:6px 0">${sanitizeHtml(r.html)}</div></details>`).join("")}</section>
+  <section class="sec"><h3>${esc(t("footers"))}<small>${(S.cfg.footers||[]).length}</small></h3>${(S.cfg.footers||[]).map(r=>`<div>${esc(r.name)}${r.def?" ★":""}</div>`).join("")}</section>`; }
+function sheetRepair(){ return ""; }
+
+/* ================= actions ================= */
+async function nextOrderNo(){ const ref=S.db.doc("counters/orders"); const be2=(new Date().getFullYear()+543)%100;
+  for(let i=0;i<6;i++){ const r=await ref.acquire({holder:S.me?.id||uid(),ttlMs:5000}); if(r.acquired){ const snap=await ref.get(); const d=snap.exists?snap.data():{}; let seq=(+d.be===be2?+d.seq||0:0)+1; await ref.set({be:be2,seq}); return orderNo(be2,seq); } await sleep(700+Math.random()*600); }
+  throw {code:"resource_exhausted"}; }
+function readHeader(prefix){ const g=k=>{const el=$("#"+prefix+k);return el?el.value:"";}; const o={}; for(const k of ["dop","rentType","dpw","customerName","jobTitle","jobType","dept","billing","phone","fax","ship","ret","useStart","useEnd","contact","contactPhone","sale","tax","footerId","remarkId","pm","gaffer","keyGrip","note"]) o[k]=g(k);
+  o.dept=o.dept?+o.dept:""; o.dpw=+o.dpw||0; return o; }
+function applyCustomer(o){ const c=[...S.cust.values()].find(x=>x.name===o.customerName); if(c){ o.customerId=c.id; if(!o.billing) o.billing=c.addr||""; if(!o.phone) o.phone=c.phone||""; } return o; }
+async function createOrder(){ const o=applyCustomer(readHeader("h-")); if(!o.customerName.trim()){toast(t("needCust"));return;} if(!o.jobTitle.trim()){toast(t("needTitle"));return;} if(o.ship&&o.ret&&o.ret<o.ship){toast(t("badDates"));return;}
+  const no=await nextOrderNo(); const id=no; const ts=nowISO();
+  const data={...o,id,no,status:"Quote",rev:0,extraDisc:0,insurance:0,totals:orderTotals([],o),usage:[],createdAt:ts,createdBy:S.me?.id||null,updatedAt:ts,log:[{at:ts,by:S.me?.id||null,a:"created"}]};
+  await put("lines/"+id,{items:[],updatedAt:ts}); await put("orders/"+id,data); await openOrder(id); if(canEditLines(role(),"Quote")) { await takeLock(); renderSheet(); } }
+async function copyOrder(o){ const no=await nextOrderNo(); const ts=nowISO(); const items=clone(S.lines||[]).map(l=>({...l,out:0,in:0,dmg:0,lost:0,repaired:false}));
+  const keep={...clone(o)}; for(const k of ["legacyId","log","createdByName"]) delete keep[k];
+  const data={...keep,id:no,no,status:"Quote",rev:0,createdAt:ts,createdBy:S.me?.id||null,updatedAt:ts,jobTitle:o.jobTitle,log:[{at:ts,by:S.me?.id||null,a:"created"}],totals:orderTotals(items,o),usage:usageOf(items)};
+  await put("lines/"+no,{items,updatedAt:ts}); await put("orders/"+no,data); toast(t("copied")); await openOrder(no); }
+async function move(o,to){ if(to==="Cancel"&&S.confirm!=="cancel"){S.confirm="cancel";renderSheet();return;} S.confirm=null;
+  const why=moveCheck(role(),o,to,S.lines||[],lineIssues(o,S.lines||[])); if(why){toast(t(why));return;}
+  const patch={status:to,updatedAt:nowISO(),log:logged(o,"status",{to})}; if(to==="Cancel"||to==="Draft INV"){ /* closed jobs stop holding stock */ }
+  await upd("orders/"+o.id,patch); }
+async function saveStore(o,mut,act){ if(!S.lines) return; if(!S.lock.mine&&!(await takeLock())){ toast(t("lockedBy",{t:S.lock.until?new Date(S.lock.until).toLocaleTimeString():"—"})); renderSheet(); return; } mut(S.lines); scheduleRender(); const items=clone(S.lines); await put("lines/"+o.id,{items,updatedAt:nowISO()}); await upd("orders/"+o.id,{updatedAt:nowISO(),log:logged(o,act)}); }
+
+document.addEventListener("click",async e=>{ const el=e.target.closest("[data-act]"); if(!el) return; const a=el.dataset.act; const o=S.openId&&(S.orders.get(S.openId)||S.closed.get(S.openId));
+  if(!["move","teamRemove"].includes(a)) S.confirm=null;
+  try{ switch(a){
+  case"tab": S.tabChosen=true; S.tab=el.dataset.tab; S.headKey=""; render(); window.scrollTo(0,0); break;
+  case"lang": LANG=LANG==="th"?"en":"th"; try{localStorage.setItem("lhd-lang",LANG);}catch(_){} S.headKey=""; render(); break;
+  case"jf": S.jf=el.dataset.f; renderBodyOnly(); break;
+  case"showClosed": S.showClosed=!S.showClosed; if(S.showClosed) loadClosed(); renderBodyOnly(); break;
+  case"newOrder": closeSheet(); S.sheet="neworder"; $("#sheetWrap").hidden=false; $("#sheet").className="sheet"; document.body.style.overflow="hidden"; renderSheet(); break;
+  case"openOrder": { await openOrder(el.dataset.id); const st=(S.orders.get(el.dataset.id)||{}).status; if(canEditLines(role(),st)||(isR("admin","store")&&["Approve","Shipped"].includes(st))){ await takeLock(); renderSheet(); } break; }
+  case"close": closeSheet(); break;
+  case"ttab": S.ttab=+el.dataset.t; S.iq=""; renderSheet(); break;
+  case"addLine": if(o&&S.lines&&S.lock.mine){ const p=S.cat.get(+el.dataset.pid); if(!p) break; const l=newLineFromProduct(o,p); S.lines.push(l); if(p.kit&&p.kit.length) S.lines.push(...expandKit(l,p.kit,S.cat,uid)); linesChanged(); } break;
+  case"addCrew": if(o&&S.lines&&S.lock.mine){ const c=S.crew.find(x=>String(x.id)===el.dataset.cid); const p=c&&(c.pos||[]).find(x=>x.code===el.dataset.pc); if(!p) break; const start=o.useStart||o.ship,end=o.useEnd||o.ret; const nm=[c.first,c.last].filter(Boolean).join(" ")||c.nick;
+      S.lines.push({k:uid(),t:S.ttab===7?7:5,pid:null,crewId:c.id,code:p.code,desc:p.name+(nm?" · "+nm:""),list:+p.price||0,otRate:+p.priceOt||0,ot:0,qty:1,days:chargeDays(start,end,o.rentType,o.dpw)||1,disc:0,foc:false,sb:false,start,end,parent:null,remark:""}); linesChanged(); } break;
+  case"rmLine": if(S.lock.mine){ const k=el.dataset.k; S.lines=S.lines.filter(l=>l.k!==k&&l.parent!==k); linesChanged(); } break;
+  case"flag": if(S.lock.mine){ const l=S.lines.find(x=>x.k===el.dataset.k); if(l){ l[el.dataset.f]=!l[el.dataset.f]; if(l.foc&&l.sb){ if(el.dataset.f==="foc") l.sb=false; else l.foc=false; } linesChanged(); } } break;
+  case"move": if(o) await move(o,el.dataset.s); break;
+  case"copyOrder": if(o) await copyOrder(o); break;
+  case"allOut": if(o) await saveStore(o,L=>L.forEach(l=>{ if(STOCKED_TYPES.includes(l.t)) l.out=+l.qty||0; }),"out"); break;
+  case"allIn": if(o) await saveStore(o,L=>L.forEach(l=>{ if(STOCKED_TYPES.includes(l.t)){ l.in=+l.out||0; l.dmg=0; l.lost=0; } }),"in"); break;
+  case"sendRepair": if(o&&S.lines){ for(const l of S.lines.filter(l=>(+l.dmg||0)>0&&!l.repaired)){ const id=uid(); await put("repairs/"+id,{id,pid:l.pid,code:l.code,desc:l.desc,qty:+l.dmg,status:"Waiting",orderNo:o.no,note:"",at:nowISO(),by:S.me?.id||null}); l.repaired=true; } await saveStore(o,()=>{},"in"); toast(t("sentRepair")); } break;
+  case"docKind": S.docKind=el.dataset.k; renderSheet(); break;
+  case"docDisc": S.docDisc=el.dataset.v==="1"; renderSheet(); break;
+  case"download": if(o) await downloadDoc(o); break;
+  case"cmore": S.climit+=200; renderBodyOnly(); break;
+  case"kRefresh": await loadCockpit(true); break;
+  case"idsOpen": S.idRows=null; S.sheet="ids"; S.openId=null; $("#sheetWrap").hidden=false; $("#sheet").className="sheet narrow"; document.body.style.overflow="hidden"; renderSheet(); break;
+  case"idsSave": { const good=(S.idRows||[]).filter(r=>r.ok); if(!good.length) break; const merged={...S.ids}; for(const r of good) merged[r.c.id]=r.id; await put("secure/crewIds",{ids:merged,updatedAt:nowISO(),updatedBy:S.me?.id||null}); toast(t("idsSaved",{n:good.length})); closeSheet(); break; }
+  case"reveal": { const k=String(el.dataset.id); if(S.reveal.has(k)) S.reveal.delete(k); else S.reveal.add(k); renderBodyOnly(); break; }
+  case"crewIds": if(o) await downloadCrewIds(o); break;
+  case"kSec": K.sec=el.dataset.k; S.headKey=""; renderMain(); break;
+  case"kFilter": K.filter=el.dataset.k; renderBodyOnly(); break;
+  case"kmore": S.klimit+=200; renderBodyOnly(); break;
+  case"newItem": kitDraft=[]; S.kq=""; S.openId=null; S.sheet="item"; $("#sheetWrap").hidden=false; $("#sheet").className="sheet narrow"; document.body.style.overflow="hidden"; renderSheet(); break;
+  case"openItem": { const p=S.cat.get(+el.dataset.id); kitDraft=clone(p?.kit||[]); S.kq=""; S.openId=el.dataset.id; S.sheet="item"; $("#sheetWrap").hidden=false; $("#sheet").className="sheet narrow"; document.body.style.overflow="hidden"; renderSheet(); break; }
+  case"addPart": { const pid=+el.dataset.pid; kitDraft=kitDraft||[]; if(!kitDraft.some(k=>k[0]===pid)) kitDraft.push([pid,1]); const p=S.openId?S.cat.get(+S.openId):null; if(p) p.kit=kitDraft; S.kq=""; renderSheet(); break; }
+  case"rmPart": { kitDraft.splice(+el.dataset.i,1); const p=S.openId?S.cat.get(+S.openId):null; if(p) p.kit=kitDraft; renderSheet(); break; }
+  case"newCust": S.openId=null; S.sheet="cust"; $("#sheetWrap").hidden=false; $("#sheet").className="sheet narrow"; document.body.style.overflow="hidden"; renderSheet(); break;
+  case"openCust": S.openId=+el.dataset.id||el.dataset.id; S.sheet="cust"; $("#sheetWrap").hidden=false; $("#sheet").className="sheet narrow"; document.body.style.overflow="hidden"; renderSheet(); break;
+  case"teamAdd": await put("team/"+el.dataset.uid,{role:"sale",addedAt:nowISO(),addedBy:S.me?.id||null}); $("#teamHits").innerHTML=""; const q=$("#teamQ"); if(q) q.value=""; break;
+  case"teamRemove": { const k="tm:"+el.dataset.uid; if(S.confirm!==k){S.confirm=k;renderBodyOnly();break;} S.confirm=null; await del("team/"+el.dataset.uid); break; }
+  } }catch(err){} });
+
+document.addEventListener("input",e=>{ const el=e.target;
+  if(el.id==="jq"){S.jq=el.value;renderBodyOnly();}
+  else if(el.id==="cq"){S.cq=el.value;S.climit=100;renderBodyOnly();}
+  else if(el.id==="kq2"){S.kq2=el.value;S.klimit=100;renderBodyOnly();}
+  else if(el.id==="rq"){S.rq=el.value;renderBodyOnly();}
+  else if(el.id==="iq"){S.iq=el.value; const o=S.orders.get(S.openId); const b=$("#iresults"); if(o&&b) b.innerHTML=itemResults(o);}
+  else if(el.id==="kq"){S.kq=el.value; const b=$("#kresults"); if(b) b.innerHTML=kitResults();}
+  else if(el.id==="teamQ"){teamSearch(el.value);}
+  else if(el.id==="idsText"){ S.idRows=parseIds(el.value); clearTimeout(window.__idsT); window.__idsT=setTimeout(()=>{ const ta=$("#idsText"); const v=ta?ta.value:""; renderSheet(); const nt=$("#idsText"); if(nt){ nt.value=v; } },400); } });
+document.addEventListener("focusin",e=>{ if(e.target.id==="teamQ"&&!e.target.value) teamSearch(""); });
+document.addEventListener("change",async e=>{ const el=e.target; const o=S.openId&&(S.orders.get(S.openId)||S.closed.get(S.openId));
+  try{
+  if(el.id==="idsFile"&&el.files&&el.files[0]){ const txt=await el.files[0].text(); S.idRows=parseIds(txt); renderSheet(); const nt=$("#idsText"); if(nt) nt.value=txt; return; }
+  if(el.id==="idept"){S.idept=el.checked; const b=$("#iresults"); if(o&&b) b.innerHTML=itemResults(o); return;}
+  if(el.id==="ctype"){S.ctype=el.value;S.climit=100;renderBodyOnly();return;} if(el.id==="cdept"){S.cdept=el.value;S.climit=100;renderBodyOnly();return;}
+  if(el.dataset.lk&&S.lock.mine&&S.lines){ const l=S.lines.find(x=>x.k===el.dataset.lk); if(!l) return; const f=el.dataset.lf; let v=el.value;
+    if(f==="start"||f==="end"){ l[f]=v; if(l.start&&l.end&&l.end<l.start){ toast(t("badDates")); l[f]=f==="start"?l.end:l.start; } l.days=chargeDays(l.start,l.end,o.rentType,o.dpw)||l.days; }
+    else { v=Math.max(0,parseFloat(v)||0); if(f==="disc") v=Math.min(100,v); if(f==="qty") v=Math.round(v); if(f==="days") v=Math.round(v*2)/2; l[f]=v; }
+    linesChanged(); return; }
+  if(el.dataset.sk&&S.lines&&o){ const l=S.lines.find(x=>x.k===el.dataset.sk); if(!l) return; const f=el.dataset.sf; let v=Math.max(0,Math.round(parseFloat(el.value)||0)); const max=f==="out"?(+l.qty||0):f==="dmg"?(+l.in||0):(+l.out||0); v=Math.min(v,max); if(f==="in"&&v+(+l.lost||0)>(+l.out||0)) v=(+l.out||0)-(+l.lost||0); if(f==="lost"&&v+(+l.in||0)>(+l.out||0)) v=(+l.out||0)-(+l.in||0);
+    await saveStore(o,()=>{l[f]=v; if(f==="in"&&(+l.dmg||0)>v) l.dmg=v;},f==="out"?"out":"in"); return; }
+  if(el.dataset.h&&o){ const k=el.dataset.h; let v=el.value; if(k==="dept") v=v?+v:""; if(k==="dpw") v=Math.max(0,Math.min(7,+v||0)); if(k==="extraDisc") v=Math.max(0,Math.min(100,+v||0)); if(k==="insurance") v=Math.max(0,+v||0);
+    const patch={[k]:v}; if(k==="customerName"){ const c=[...S.cust.values()].find(x=>x.name===v); if(c){ patch.customerId=c.id; if(!o.billing) patch.billing=c.addr||""; if(!o.phone) patch.phone=c.phone||""; } }
+    const nx={...o,...patch}; if(nx.ship&&nx.ret&&nx.ret<nx.ship){ toast(t("badDates")); el.value=o[k]||""; return; }
+    if(["extraDisc","insurance","tax"].includes(k)) patch.totals=orderTotals(S.lines||[],nx);
+    patch.updatedAt=nowISO(); patch.log=logged(o,"header"); await upd("orders/"+o.id,patch); return; }
+  if(el.id==="adjustTo"&&o){ const G0=orderTotals(S.lines||[],{...o,adjust:0}); const v=el.value===""?0:r2((parseFloat(el.value)||0)-(G0.sub-G0.extra)); const nx={...o,adjust:v}; await upd("orders/"+o.id,{adjust:v,totals:orderTotals(S.lines||[],nx),updatedAt:nowISO(),log:logged(o,"header")}); return; }
+  if(el.id==="fixStatus"&&o&&el.value){ await upd("orders/"+o.id,{status:el.value,updatedAt:nowISO(),log:logged(o,"status",{to:el.value})}); return; }
+  if(el.dataset.roleUid){ await upd("team/"+el.dataset.roleUid,{role:el.value}); return; }
+  if(el.dataset.rep){ await upd("repairs/"+el.dataset.rep,{status:el.value,updatedAt:nowISO()}); return; }
+  }catch(err){} });
+document.addEventListener("submit",async e=>{ e.preventDefault(); const f=e.target; try{
+  if(f.id==="newOrderForm") await createOrder();
+  else if(f.id==="itemForm"){ const g=id=>$("#"+id).value; const data={code:g("it-code").trim(),desc:g("it-desc").trim(),type:+g("it-type"),dept:+g("it-dept"),price:Math.max(0,+g("it-price")||0),discountable:g("it-discountable")==="1"?1:0,maxDisc:Math.max(0,Math.min(100,+g("it-maxDisc")||0)),stock:Math.max(0,Math.round(+g("it-stock")||0)),kit:kitDraft||[],updatedAt:nowISO()};
+    if(!data.code||!data.desc){toast(t("needTitle"));return;} const id=S.openId?+S.openId:(-Date.now()); data.id=id; await put("catalogEdits/"+String(id).replace("-","n"),data); toast(t("saved")); closeSheet(); }
+  else if(f.id==="custForm"){ const g=id=>$("#"+id).value; const data={code:g("cu-code").trim(),name:g("cu-name").trim(),tax:g("cu-tax").trim(),type:g("cu-type"),disc:Math.max(0,Math.min(100,+g("cu-disc")||0)),phone:g("cu-phone").trim(),addr:g("cu-addr").trim(),updatedAt:nowISO()};
+    if(!data.name){toast(t("needCust"));return;} const id=S.openId||("n"+Date.now()); data.id=id; await put("customerEdits/"+id,data); toast(t("saved")); closeSheet(); }
+  else if(f.id==="setForm"){ await put("meta/company",{name:$("#s-name").value.trim(),tax:$("#s-tax").value.trim(),addr:$("#s-addr").value.trim(),updatedAt:nowISO()}); toast(t("saved")); }
+  }catch(err){} });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&S.sheet) closeSheet(); });
+let toastT=0; function toast(m){const el=$("#toast");el.textContent=m;el.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove("show"),3200);}
+
+/* ================= boot ================= */
+async function loadClosed(){ if(S.closedLoaded) return; S.closedLoaded=true; for(const st of ["Draft INV","Cancel"]){ try{ const s=await S.db.collection("orders").where("status","==",st).limit(500).get(); for(const d of s.docs) S.closed.set(d.id,{id:d.id,...d.data()}); }catch(e){} } scheduleRender(); }
+function rowsToProducts(doc){ const cols=doc.cols, out=[]; for(const r of doc.rows||[]){ const o={}; cols.forEach((c,i)=>o[c]=r[i]); out.push({id:o.id,code:o.code,desc:o.desc,dept:o.dept,type:o.type,price:+o.price||0,discountable:+o.discountable?1:0,maxDisc:+o.maxDisc||0,stock:+o.stock||0,serial:o.serial,kit:(S.kitsBase&&S.kitsBase.get(o.id))||[]}); } return out; }
+async function boot(){ render(); const C=window.claude; if(!C||!C.use){S.offline=true;render();return;}
+  const [db,user,dl]=await Promise.all([C.use("db"),C.use("user"),C.use("downloads")]); S.user=user; S.dl=dl;
+  if(user){ S.me=await user.me(); S.admin=await user.canEdit(); const cw=await user.can("data.write"); S.canWrite=cw!==false; }
+  if(!db){S.offline=true;render();return;} S.db=db;
+  db.collection("orders").where("status","in",["Quote","Order","Approve","Shipped","Returned"]).limit(1000).onSnapshot(s=>{ const prevOpen=S.openId&&S.orders.get(S.openId); S.orders.clear(); for(const d of s.docs) S.orders.set(d.id,{id:d.id,...d.data()}); for(const id of S.orders.keys()) S.closed.delete(id); if(prevOpen&&!S.orders.has(prevOpen.id)){ S.closed.set(prevOpen.id,prevOpen); S.db.doc("orders/"+prevOpen.id).get().then(d=>{ if(d.exists){ S.closed.set(d.id,{id:d.id,...d.data()}); scheduleRender(); } }).catch(()=>{}); } S.loaded.orders=true; scheduleRender(); refreshProfiles(); },()=>{S.loaded.orders=true;scheduleRender();});
+  db.collection("catalog").onSnapshot(s=>{ S.catBase.clear(); for(const d of s.docs) for(const p of rowsToProducts(d.data())) S.catBase.set(p.id,p); rebuildCat(); S.loaded.cat=true; scheduleRender(); },()=>{});
+  db.collection("catalogEdits").onSnapshot(s=>{ S.catEdits.clear(); for(const d of s.docs){ const x=d.data(); S.catEdits.set(+x.id,x);} rebuildCat(); scheduleRender(); },()=>{});
+  db.collection("kits").onSnapshot(s=>{ S.kitsBase=new Map(); for(const d of s.docs){ for(const [pid,kit] of Object.entries(d.data().kits||{})) S.kitsBase.set(+pid,kit);} for(const [pid,kit] of S.kitsBase){ const p=S.catBase.get(pid); if(p) p.kit=kit; } rebuildCat(); scheduleRender(); },()=>{});
+  db.collection("customers").onSnapshot(s=>{ S.custBase.clear(); for(const d of s.docs) for(const c of d.data().rows||[]) S.custBase.set(c.id,c); rebuildCust(); S.loaded.cust=true; scheduleRender(); },()=>{});
+  db.collection("customerEdits").onSnapshot(s=>{ S.custEdits.clear(); for(const d of s.docs){const x=d.data(); S.custEdits.set(isNaN(+x.id)?x.id:+x.id,x);} rebuildCust(); scheduleRender(); },()=>{});
+  db.collection("crew").onSnapshot(s=>{ S.crew=[]; for(const d of s.docs) S.crew.push(...(d.data().rows||[])); scheduleRender(); },()=>{});
+  db.collection("meta").onSnapshot(s=>{ for(const d of s.docs){ const x=d.data(); if(d.id==="config") Object.assign(S.cfg,x); if(d.id==="company") S.cfg.company=x; if(d.id==="sync") S.cfg.sync=x; } scheduleRender(); },()=>{});
+  if(S.admin) db.doc("secure/crewIds").onSnapshot(s=>{ S.ids=(s.exists&&s.data().ids)||{}; S.idsLoaded=true; scheduleRender(); },()=>{ S.idsLoaded=false; });
+  db.collection("team").onSnapshot(s=>{ S.team.clear(); for(const d of s.docs) S.team.set(d.id,{id:d.id,...d.data()}); S.loaded.team=true; scheduleRender(); refreshProfiles(); },()=>{S.loaded.team=true;});
+  db.collection("repairs").orderBy("at","desc").limit(500).onSnapshot(s=>{ S.repairs.clear(); for(const d of s.docs) S.repairs.set(d.id,{id:d.id,...d.data()}); scheduleRender(); },()=>{});
+  render(); }
+boot();
+</script>
+
+</body></html>
