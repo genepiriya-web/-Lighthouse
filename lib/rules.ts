@@ -1,5 +1,6 @@
-// Price rule (Gene, 23 Oct 2026, PLAN.md Q21 option b): only an admin may price an item below its catalog day rate,
-// or discount it beyond what the catalog allows. Shared so the screens (M4) can warn before the server refuses.
+// Price rule (Gene, 23 Oct 2026, replacing Q21 option b): sales may price an item below its catalog day rate or discount
+// it beyond what the catalog allows, but the job can't move to Shipped until the CEO (admin role) confirms those prices.
+// Shared so the screens can show what still needs the CEO before the server refuses the move.
 //
 // Same reading of the catalog as logic.js defaultDisc() and the Cockpit's "Discount breaks rule" check:
 //   not discountable → no discount at all; maxDisc > 0 → that cap; maxDisc 0 → no cap.
@@ -17,4 +18,13 @@ export function priceBreaks(l: Line & { k: string }, p: Pick<Product, "price" | 
   if (disc > 0 && !p.discountable) out.push({ k: l.k, code, rule: "no_discount", value: disc, limit: 0 });
   else if (disc > 0 && max > 0 && disc > max) out.push({ k: l.k, code, rule: "over_max_disc", value: disc, limit: max });
   return out;
+}
+
+export interface PriceApproval { by: string; by_name: string; at: string; breaks: PriceBreak[]; }
+
+/** Breaks the CEO hasn't confirmed. A confirmation covers a break only while its line, rule and value stay the same,
+ *  so changing an approved price again needs a new confirmation. A later catalog price change doesn't undo it. */
+export function unapproved(current: PriceBreak[], approval: PriceApproval | null | undefined): PriceBreak[] {
+  const ok = new Set((approval?.breaks ?? []).map(b => `${b.k}|${b.rule}|${b.value}`));
+  return current.filter(b => !ok.has(`${b.k}|${b.rule}|${b.value}`));
 }

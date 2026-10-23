@@ -32,7 +32,8 @@ All writes need `rev` (the version you read) and return the new `rev`; a stale `
 | POST | `/api/orders` | sale, admin |
 | GET | `/api/orders/:id` (job, lines, activity) | any staff |
 | PATCH | `/api/orders/:id` (details; extraDisc/insurance/adjust) | details: sale (Quote/Order), admin · money: also accounting |
-| PUT | `/api/orders/:id/lines` | sale (Quote/Order), admin (to Approve). Below catalog price or over the discount limit: admin only (403 `price_rule`) |
+| PUT | `/api/orders/:id/lines` | sale (Quote/Order), admin (to Approve). Returns `needsCeo`: special prices still to confirm |
+| POST | `/api/orders/:id/approve-prices` | CEO (admin). Needed before Shipped when `needsCeo` isn't empty |
 | POST | `/api/orders/:id/move` `{ to }` | per `moveCheck` in `logic.js` |
 | POST | `/api/orders/:id/checkout` / `checkin` | store, admin |
 | POST | `/api/orders/:id/fix-status` `{ to, reason }` | admin |

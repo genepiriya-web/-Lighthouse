@@ -28,7 +28,7 @@ Gene (MD) decides. Give pros and cons for every proposal. Never guess facts: wri
 
 ## Server rules (enforced by tests/orders-api.test.js)
 - Every change to a job goes through `lib/server/orders.ts`, inside `tx()` (service_role). It locks the row, refuses legacy jobs (409 `legacy_read_only`), checks the role with `logic.js` (`moveCheck`, `canEditLines`) plus the artifact's header/money/store rules, checks `rev` (409 `stale`), recomputes totals/usage from stored lines, bumps `rev`, and writes one `activity` row. Never trust totals sent by a client.
-- Price rule (Gene, Q21b): non-admins can't save a new/changed line below catalog price, with a discount on a non-discountable item, or over `maxDisc` (`lib/rules.ts`). Admin overrides go into the activity detail. FOC/standby stay open to sales (Gene, Q25).
+- Special prices (Gene, 23 Oct): sales may save prices below catalog / over the discount limit (`lib/rules.ts`), but moving to Shipped needs the CEO's confirmation (`approve-prices`, admin role) of every current break. FOC/standby stay open to sales (Q25).
 - Routes in `app/api/**` stay thin: parse, `requireStaff`, call the service.
 - `LHD_AUTH=dev` (header `x-dev-user`) is for local dev/tests only and refuses to run unless `DATABASE_URL` is on this machine. Real sign-in (Supabase) is M6; until then every non-dev request is 401.
 

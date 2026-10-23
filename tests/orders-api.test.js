@@ -148,32 +148,44 @@ test("header vs money permissions follow the artifact: accounting edits fees, no
   assert.equal((await api("sale","PATCH",`/api/orders/${j.id}`,{rev:2,totals:{}})).body.error,"unknown_fields");
 });
 
-test("price rule (Gene, Q21b): below catalog or over the discount limit needs an admin",{skip},async()=>{
-  // Fixture catalog: M18 (1) ฿24,000, discountable, no cap · CG (2) ฿150, not discountable · GEN (3) ฿9,000, max 20%.
-  const j=ok(await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Price rule job"})); let r=0;
-  const put=(who,lines)=>api(who,"PUT",`/api/orders/${j.id}/lines`,{rev:r,lines});
-  const rule=async(lines,expect)=>{ const x=await put("sale",lines); assert.equal(x.status,403,JSON.stringify(x.body)); assert.equal(x.body.error,"price_rule");
-    assert.deepEqual(x.body.breaks.map(b=>[b.k,b.rule,b.value,b.limit]),expect); };
-  await rule([{k:"a",t:1,pid:1,code:"M18",list:20000,qty:1,days:1}],[["a","below_catalog",20000,24000]]);
-  await rule([{k:"b",t:2,pid:2,code:"CG",list:150,qty:4,days:1,disc:5}],[["b","no_discount",5,0]]);
-  await rule([{k:"c",t:4,pid:3,code:"GEN",list:9000,qty:1,days:1,disc:25}],[["c","over_max_disc",25,20]]);
-  await rule([{k:"a",t:1,pid:1,list:1,qty:1,days:1},{k:"c",t:4,pid:3,list:8000,qty:1,days:1,disc:30}],[["a","below_catalog",1,24000],["c","below_catalog",8000,9000],["c","over_max_disc",30,20]]);
-  // Allowed for sale: at or above catalog, within the limit, no-cap items, FOC, kit parts, crew lines.
-  const fine=[{k:"a",t:1,pid:1,code:"M18",list:26000,qty:1,days:1,disc:70},{k:"c",t:4,pid:3,code:"GEN",list:9000,qty:1,days:1,disc:20},
-    {k:"p",t:2,pid:2,code:"CG",list:0,qty:4,days:1,parent:"c"},{k:"f",t:2,pid:2,code:"CG",list:150,qty:1,days:1,foc:true},
-    {k:"g",t:5,code:"G01",list:1,qty:1,days:1,crewId:"500"},{k:"x",t:6,code:"SUB",list:5,qty:1,days:1}];
-  r=ok(await put("sale",fine),"sale within rules").rev;
-  // An admin may break it; the override is recorded with the change.
-  const adminLines=fine.map(l=>l.k==="c"?{...l,list:7000,disc:35}:l);
-  r=ok(await put("admin",adminLines),"admin override").rev;
-  const act=ok(await api("admin","GET",`/api/orders/${j.id}`)).activity.at(-1);
-  assert.equal(act.actor_name,"Test admin"); assert.deepEqual(act.detail.overrides.map(b=>[b.k,b.rule]),[["c","below_catalog"],["c","over_max_disc"]]);
-  // Sale can still edit other lines without touching the admin-approved one...
-  r=ok(await put("sale",adminLines.map(l=>l.k==="a"?{...l,qty:2}:l)),"sale edits around the override").rev;
-  // ...but changing the approved line again needs an admin.
-  await rule(adminLines.map(l=>l.k==="c"?{...l,disc:36}:l),[["c","below_catalog",7000,9000],["c","over_max_disc",36,20]]);
-  // Turning a kit part into a normal line is a change too.
-  await rule(adminLines.map(l=>l.k==="p"?{...l,parent:undefined}:l),[["p","below_catalog",0,150]]);
+test("special prices (Gene, 23 Oct): sales may set them, but the CEO must confirm before Shipped",{skip},async()=>{
+  // Fixture catalog: M18 (1) ฿24,000, discountable, no cap, stock 2 · CG (2) ฿150, not discountable · GEN (3) ฿9,000, max 20%, stock 1.
+  const j=ok(await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Special price job",ship:"2026-12-20",ret:"2026-12-21"}));
+  const lines=[{k:"a",t:1,pid:1,code:"M18",list:20000,qty:1,days:1},{k:"b",t:2,pid:2,code:"CG",list:150,qty:4,days:1,disc:5},
+    {k:"c",t:4,pid:3,code:"GEN",list:9000,qty:1,days:1,disc:25},{k:"p",t:2,pid:2,code:"CG",list:0,qty:4,days:1,parent:"c"},
+    {k:"f",t:2,pid:2,code:"CG",list:150,qty:1,days:1,foc:true},{k:"g",t:5,code:"G01",list:1,qty:1,days:1,crewId:"500"}];
+  let s=ok(await api("sale","PUT",`/api/orders/${j.id}/lines`,{rev:0,lines}),"sale saves special prices");
+  assert.deepEqual(s.needsCeo.map(b=>[b.k,b.rule,b.value,b.limit]),[["a","below_catalog",20000,24000],["b","no_discount",5,0],["c","over_max_disc",25,20]]);
+  let r=s.rev;
+  r=ok(await api("sale","POST",`/api/orders/${j.id}/move`,{rev:r,to:"Order"})).rev;
+  r=ok(await api("sale","POST",`/api/orders/${j.id}/move`,{rev:r,to:"Approve"})).rev;
+  r=ok(await api("store","POST",`/api/orders/${j.id}/checkout`,{rev:r,all:true})).rev;
+  let x=await api("store","POST",`/api/orders/${j.id}/move`,{rev:r,to:"Shipped"});
+  assert.equal(x.status,422); assert.equal(x.body.error,"rPriceApproval"); assert.equal(x.body.breaks.length,3);
+  for(const who of ["sale","store","accounting","crew"]) assert.equal((await api(who,"POST",`/api/orders/${j.id}/approve-prices`,{rev:r})).status,403,who);
+  assert.equal(ok(await api("store","GET",`/api/orders/${j.id}`)).needsCeo.length,3);
+  r=ok(await api("admin","POST",`/api/orders/${j.id}/approve-prices`,{rev:r}),"CEO confirms").rev;
+  const d=ok(await api("store","GET",`/api/orders/${j.id}`)); assert.deepEqual(d.needsCeo,[]);
+  assert.equal(d.order.price_approval.by_name,"Test admin");
+  const act=d.activity.at(-1); assert.deepEqual([act.action,act.actor_name,act.detail.breaks.length],["prices_approved","Test admin",3]);
+  assert.equal((await api("admin","POST",`/api/orders/${j.id}/approve-prices`,{rev:r})).body.error,"nothing_to_approve");
+  // Admin edits at Approve: an untouched approved line stays approved; changing an approved price needs the CEO again.
+  r=ok(await api("admin","PUT",`/api/orders/${j.id}/lines`,{rev:r,lines:lines.map(l=>l.k==="g"?{...l,qty:2}:l)})).rev;
+  assert.deepEqual(ok(await api("store","GET",`/api/orders/${j.id}`)).needsCeo,[]);
+  s=ok(await api("admin","PUT",`/api/orders/${j.id}/lines`,{rev:r,lines:lines.map(l=>l.k==="a"?{...l,list:18000}:l)})); r=s.rev;
+  assert.deepEqual(s.needsCeo.map(b=>[b.k,b.value]),[["a",18000]]);
+  assert.equal((await api("store","POST",`/api/orders/${j.id}/move`,{rev:r,to:"Shipped"})).body.error,"rPriceApproval");
+  r=ok(await api("admin","POST",`/api/orders/${j.id}/approve-prices`,{rev:r})).rev;
+  assert.equal(ok(await api("store","POST",`/api/orders/${j.id}/move`,{rev:r,to:"Shipped"}),"ships after CEO").status,"Shipped");
+  assert.equal((await api("admin","POST",`/api/orders/${j.id}/approve-prices`,{rev:r+1})).body.error,"wrong_status");
+});
+
+test("jobs at catalog prices ship without the CEO",{skip},async()=>{
+  const j=ok(await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Catalog price job",ship:"2026-12-24",ret:"2026-12-25"}));
+  let r=ok(await api("sale","PUT",`/api/orders/${j.id}/lines`,{rev:0,lines:[{k:"a",t:1,pid:1,code:"M18",list:24000,qty:1,days:1,disc:70},{k:"c",t:4,pid:3,code:"GEN",list:9500,qty:1,days:1,disc:20}]})).rev;
+  for(const to of ["Order","Approve"]) r=ok(await api("sale","POST",`/api/orders/${j.id}/move`,{rev:r,to})).rev;
+  r=ok(await api("store","POST",`/api/orders/${j.id}/checkout`,{rev:r,all:true})).rev;
+  ok(await api("store","POST",`/api/orders/${j.id}/move`,{rev:r,to:"Shipped"}),"ships");
 });
 
 test("legacy jobs are read-only through every endpoint",{skip},async()=>{

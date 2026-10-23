@@ -291,12 +291,15 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
 13. Where is `lighthouse-dispatch-handoff.zip`? If it exists, its tests should be merged with these.
 
 ### Found during M3
-21. **Sales changing prices and discounts.** Gene chose **(b)** on 23 Oct 2026. Only an admin may price an item below its catalog day rate, discount an item marked not discountable, or go over its `maxDisc` (`maxDisc` 0 still means no cap, as in `logic.js`).
-    - **Done:** `lib/rules.ts`, enforced in `PUT /api/orders/:id/lines`. Others get 403 `price_rule`, listing each break.
-    - **Admin overrides** are recorded in the activity log.
-    - **Only new or changed lines are checked,** so a price an admin approved doesn't block sales from editing the rest of the job.
+21. **Sales changing prices and discounts.** Decided by Gene on 23 Oct 2026. This **replaces** the earlier option (b).
+    - **Sales may set any price or discount.**
+    - **Before shipping, the CEO must confirm.** A job with lines priced below catalog, discounted on a non-discountable item, or over `maxDisc` can't move to Shipped until the CEO confirms them.
+    - **Done:** `POST /api/orders/:id/approve-prices` (admin role). The move to Shipped returns 422 `rPriceApproval` with the unconfirmed lines. Saving items returns `needsCeo`.
+    - **What a confirmation covers:** it holds while the line, rule and value stay the same. Changing a confirmed price needs a new confirmation; editing other lines doesn't.
     - **Exempt, as in the Cockpit:** kit parts, crew/freelance lines, lines with no catalog item, and FOC/standby.
-    - **Impact on today's data:** 23 of 209 jobs (11%) have at least one line that would now need an admin: 71 lines below catalog, 1 discount on a non-discountable item, 1 over `maxDisc`. Legacy jobs aren't affected, because they stay in the old system.
+    - **Logged:** every confirmation is in the activity log.
+    - **Impact on today's data:** 23 of 209 jobs (11%) have at least one line that would need the CEO before shipping.
+    - **Assumptions to confirm (Q26):** (1) the gate is the move to **Shipped**, not Order or Approve; (2) "CEO" means the **admin role**, since there's no separate CEO role.
     - **Q24:** some "below catalog" lines may be quotes made before a catalog price went up, not discounts. Should a job keep the catalog price from the day it was quoted?
     - **Q25, decided by Gene on 23 Oct 2026: no.** Sales can still mark lines FOC or standby, as today. Every change, including FOC, is recorded in the activity log.
 22. **Not built in M3, still on the artifact only:** copy job as new quote; send damaged items to repair from check-in; catalog/customer edits; Cockpit. They come with M4 (screens), unless you want them earlier.

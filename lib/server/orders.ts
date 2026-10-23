@@ -11,7 +11,7 @@ import {
   type Line, type Order, type Status,
 } from "../logic";
 import { ApiError, bad } from "./http";
-import { priceBreaks, type PriceBreak } from "../rules";
+import { priceBreaks, unapproved, type PriceBreak, type PriceApproval } from "../rules";
 import type { Caller } from "./auth";
 
 // ---------- shapes ----------
@@ -138,7 +138,9 @@ export async function getOrder(c: PoolClient, id: string) {
   const r = await c.query("select * from orders where id = $1", [id]);
   if (!r.rowCount) throw new ApiError(404, "not_found");
   const activity = (await c.query("select at, actor_name, action, detail from activity where entity='order' and entity_id=$1 order by at, id", [id])).rows;
-  return { order: r.rows[0], lines: await loadLines(c, id), activity };
+  const lines = await loadLines(c, id);
+  const needsCeo = unapproved(await priceBreaksOf(c, lines), r.rows[0].price_approval);
+  return { order: r.rows[0], lines, activity, needsCeo };
 }
 
 // ---------- writes ----------
@@ -222,9 +224,6 @@ export async function saveLines(c: PoolClient, who: Caller, id: string, body: Re
   const lines = cleanLines(body.lines);
   const before = await loadLines(c, id);
   const keep = new Map(before.map(l => [l.k, l])); // check-out/in counts are not editable here; carry them over
-  const breaks = await checkPrices(c, lines, keep);
-  if (breaks.length && who.role !== "admin")
-    throw new ApiError(403, "price_rule", "Only an admin can price items below catalog or discount beyond the item's limit", { breaks });
   await c.query("delete from order_lines where order_id = $1", [id]);
   if (lines.length) await c.query(`insert into order_lines (order_id,k,sort,t,pid,code,description,list,qty,days,disc,foc,sb,ot,ot_rate,ratio,parent_k,start_date,end_date,out_qty,in_qty,dmg,lost,repaired,crew_id,remark)
     select $1, x.k, x.sort, x.t, x.pid, x.code, x."desc", x.list, x.qty, x.days, x.disc, x.foc, x.sb, x.ot, x."otRate", x.ratio, x.parent, x.start::date, x."end"::date,
@@ -233,19 +232,30 @@ export async function saveLines(c: PoolClient, who: Caller, id: string, body: Re
       ot numeric, "otRate" numeric, ratio numeric, parent text, start text, "end" text, out numeric, "in" numeric, dmg numeric, lost numeric, repaired bool, "crewId" text, remark text)`,
     [id, JSON.stringify(lines.map((l, i) => { const p = keep.get(l.k); return { ...l, sort: i, out: p?.out ?? 0, in: p?.in ?? 0, dmg: p?.dmg ?? 0, lost: p?.lost ?? 0, repaired: p?.repaired ?? false }; }))]);
   const rev = await finish(c, o, who);
-  await logActivity(c, who, id, "items", { ...diffLines(before, lines), ...(breaks.length && { overrides: breaks }) });
-  return { id, rev };
+  const pending = unapproved(await priceBreaksOf(c, lines), o.price_approval as PriceApproval | null);
+  await logActivity(c, who, id, "items", { ...diffLines(before, lines), ...(pending.length && { needsCeo: pending }) });
+  return { id, rev, needsCeo: pending };
 }
 
-/** Price-rule breaks on lines that are new or whose item, price or discount changed. Untouched lines keep whatever an
- *  admin approved earlier, so sales can still edit the rest of the job. */
-async function checkPrices(c: PoolClient, lines: SLine[], before: Map<string, SLine>): Promise<PriceBreak[]> {
-  const touched = lines.filter(l => { const p = before.get(l.k);
-    return !p || p.pid !== l.pid || Number(p.list) !== Number(l.list) || Number(p.disc) !== Number(l.disc) || !!p.foc !== !!l.foc || !!p.sb !== !!l.sb || !!p.parent !== !!l.parent || p.t !== l.t; });
-  const pids = [...new Set(touched.map(l => l.pid).filter((x): x is number => x != null))];
+/** Every line priced below catalog or discounted past its limit (lib/rules.ts). */
+async function priceBreaksOf(c: PoolClient, lines: SLine[]): Promise<PriceBreak[]> {
+  const pids = [...new Set(lines.map(l => l.pid).filter((x): x is number => x != null))];
   if (!pids.length) return [];
   const cat = new Map((await c.query(`select id, price, discountable, max_disc as "maxDisc" from products where id = any($1::int[])`, [pids])).rows.map(r => [r.id, r]));
-  return touched.flatMap(l => priceBreaks(l, l.pid == null ? undefined : cat.get(l.pid)));
+  return lines.flatMap(l => priceBreaks(l, l.pid == null ? undefined : cat.get(l.pid)));
+}
+
+/** CEO (admin role) confirms the job's current special prices. Needed before the job can move to Shipped. */
+export async function approvePrices(c: PoolClient, who: Caller, id: string, body: Record<string, unknown>) {
+  if (who.role !== "admin") throw new ApiError(403, "rRole", "Only the CEO can confirm special prices");
+  const o = await openForWrite(c, id, body.rev);
+  if (!["Quote", "Order", "Approve"].includes(o.status)) throw bad("wrong_status", "Prices are confirmed before shipping");
+  const breaks = await priceBreaksOf(c, await loadLines(c, id));
+  if (!unapproved(breaks, o.price_approval as PriceApproval | null).length) throw bad("nothing_to_approve");
+  const approval: PriceApproval = { by: who.id, by_name: who.name, at: new Date().toISOString(), breaks };
+  const rev = await finish(c, o, who, { price_approval: JSON.stringify(approval) });
+  await logActivity(c, who, id, "prices_approved", { breaks });
+  return { id, rev };
 }
 
 /** Items short on the job's dates, counting every job that holds stock — legacy and v2 alike (flaw 1). */
@@ -270,6 +280,9 @@ export async function moveOrder(c: PoolClient, who: Caller, id: string, body: Re
   const issues = await stockIssues(c, o, lines);
   const why = moveCheck(who.role, toLogicOrder(o), to, lines, issues);
   if (why) throw new ApiError(why === "rRole" ? 403 : 422, why, undefined, why === "rClash" ? { issues } : undefined);
+  if (to === "Shipped") { // special prices need the CEO before the gear leaves (Gene, 23 Oct 2026)
+    const pending = unapproved(await priceBreaksOf(c, lines), o.price_approval as PriceApproval | null);
+    if (pending.length) throw bad("rPriceApproval", "The CEO must confirm the special prices before shipping", { breaks: pending }); }
   const rev = await finish(c, o, who, { status: to });
   await logActivity(c, who, id, "status", { from: o.status, to });
   return { id, rev, status: to };
