@@ -7,3 +7,5 @@ data/
 next-env.d.ts
 *.tsbuildinfo
 .pgdata/
+test-results/
+playwright-report/

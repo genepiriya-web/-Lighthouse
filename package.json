@@ -17,9 +17,11 @@
     "db:migrate": "node scripts/migrate.js",
     "db:import": "node scripts/import.js",
     "test:db": "node --test --test-concurrency=1 tests/db.test.js",
-    "test:orders": "node --test --test-concurrency=1 tests/orders-api.test.js"
+    "test:orders": "node --test --test-concurrency=1 tests/orders-api.test.js",
+    "test:e2e": "node e2e/db.js setup && playwright test; s=$?; node e2e/db.js teardown; exit $s"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.0",
     "@types/node": "24.19.1",
     "@types/pg": "8.23.1",
     "@types/react": "19.3.0",
