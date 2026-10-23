@@ -21,3 +21,26 @@ export async function searchCustomers(c: PoolClient, q: string, limit = 20) {
     where name ilike $1 or code ilike $1 order by name limit $2`, [`%${q}%`, Math.max(1, Math.min(100, limit))]);
   return r.rows;
 }
+
+/** Crew and their position rates for the job's crew picker. Never returns what we pay crew (crew_rate_costs). */
+export async function searchCrew(c: PoolClient, q: string, dept?: number, limit = 40) {
+  const args: unknown[] = [`%${q}%`]; let deptSql = "";
+  if (dept && dept !== 3) { args.push(dept); deptSql = `and (r.dept is null or r.dept = $${args.length})`; }
+  args.push(Math.max(1, Math.min(100, limit)));
+  const r = await c.query(`select cr.id as "crewId", trim(concat_ws(' ', cr.first_name, cr.last_name)) as name, cr.nick, cr.code as "crewCode",
+      r.position_id as "positionId", r.rate_no as "rateNo", r.needs_review as "needsReview", r.dept, r.price, r.price_ot as "priceOt",
+      p.code as "posCode", p.name as "posName"
+    from crew cr join crew_rates r on r.crew_id = cr.id left join positions p on p.id = r.position_id
+    where cr.enabled and r.enabled ${deptSql}
+      and (cr.first_name ilike $1 or cr.last_name ilike $1 or cr.nick ilike $1 or cr.code ilike $1 or p.name ilike $1 or p.code ilike $1)
+    order by cr.first_name, p.sort nulls last, r.rate_no limit $${args.length}`, args);
+  return r.rows;
+}
+
+export async function listRepairs(c: PoolClient, status?: string) {
+  const args: unknown[] = []; let where = "";
+  if (status) { args.push(status); where = "where r.status = $1"; }
+  const r = await c.query(`select r.id, r.created_at as at, r.pid, r.code, r.description as "desc", r.qty, r.status, r.note, o.no as "orderNo", r.order_id as "orderId"
+    from repairs r left join orders o on o.id = r.order_id ${where} order by r.created_at desc limit 500`, args);
+  return r.rows;
+}

@@ -223,16 +223,21 @@ export async function saveLines(c: PoolClient, who: Caller, id: string, body: Re
   const before = await loadLines(c, id);
   const keep = new Map(before.map(l => [l.k, l])); // check-out/in counts are not editable here; carry them over
   await c.query("delete from order_lines where order_id = $1", [id]);
-  if (lines.length) await c.query(`insert into order_lines (order_id,k,sort,t,pid,code,description,list,qty,days,disc,foc,sb,ot,ot_rate,ratio,parent_k,start_date,end_date,out_qty,in_qty,dmg,lost,repaired,crew_id,remark)
-    select $1, x.k, x.sort, x.t, x.pid, x.code, x."desc", x.list, x.qty, x.days, x.disc, x.foc, x.sb, x.ot, x."otRate", x.ratio, x.parent, x.start::date, x."end"::date,
-      x.out, x."in", x.dmg, x.lost, x.repaired, x."crewId", x.remark
-    from json_to_recordset($2) as x(k text, sort int, t int, pid int, code text, "desc" text, list numeric, qty numeric, days numeric, disc numeric, foc bool, sb bool,
-      ot numeric, "otRate" numeric, ratio numeric, parent text, start text, "end" text, out numeric, "in" numeric, dmg numeric, lost numeric, repaired bool, "crewId" text, remark text)`,
-    [id, JSON.stringify(lines.map((l, i) => { const p = keep.get(l.k); return { ...l, sort: i, out: p?.out ?? 0, in: p?.in ?? 0, dmg: p?.dmg ?? 0, lost: p?.lost ?? 0, repaired: p?.repaired ?? false }; }))]);
+  if (lines.length) await insertLines(c, id, lines.map(l => { const p = keep.get(l.k); return { ...l, out: p?.out ?? 0, in: p?.in ?? 0, dmg: p?.dmg ?? 0, lost: p?.lost ?? 0, repaired: p?.repaired ?? false }; }));
   const rev = await finish(c, o, who);
   const pending = unapproved(await priceBreaksOf(c, lines), o.price_approval as PriceApproval | null);
   await logActivity(c, who, id, "items", { ...diffLines(before, lines), ...(pending.length && { needsCeo: pending }) });
   return { id, rev, needsCeo: pending };
+}
+
+
+async function insertLines(c: PoolClient, id: string, lines: SLine[]) {
+  await c.query(`insert into order_lines (order_id,k,sort,t,pid,code,description,list,qty,days,disc,foc,sb,ot,ot_rate,ratio,parent_k,start_date,end_date,out_qty,in_qty,dmg,lost,repaired,crew_id,remark)
+    select $1, x.k, x.sort, x.t, x.pid, x.code, x."desc", x.list, x.qty, x.days, x.disc, x.foc, x.sb, x.ot, x."otRate", x.ratio, x.parent, x.start::date, x."end"::date,
+      x.out, x."in", x.dmg, x.lost, x.repaired, x."crewId", x.remark
+    from json_to_recordset($2) as x(k text, sort int, t int, pid int, code text, "desc" text, list numeric, qty numeric, days numeric, disc numeric, foc bool, sb bool,
+      ot numeric, "otRate" numeric, ratio numeric, parent text, start text, "end" text, out numeric, "in" numeric, dmg numeric, lost numeric, repaired bool, "crewId" text, remark text)`,
+    [id, JSON.stringify(lines.map((l, i) => ({ ...l, sort: i, out: l.out ?? 0, in: l.in ?? 0, dmg: l.dmg ?? 0, lost: l.lost ?? 0, repaired: l.repaired ?? false })))]);
 }
 
 /** Every line priced below catalog or discounted past its limit (lib/rules.ts). */
@@ -330,4 +335,56 @@ export async function storeCounts(c: PoolClient, who: Caller, id: string, mode: 
   const rev = await finish(c, o, who);
   await logActivity(c, who, id, mode === "out" ? "checkout" : "checkin", { changed });
   return { id, rev };
+}
+
+/** Copy a job (legacy or v2) as a new v2 quote: same details and items, counts reset, no price confirmation. */
+export async function copyOrder(c: PoolClient, who: Caller, id: string) {
+  if (who.role !== "admin" && who.role !== "sale") throw new ApiError(403, "rRole");
+  const src = (await c.query("select * from orders where id = $1", [id])).rows[0];
+  if (!src) throw new ApiError(404, "not_found");
+  const lines = (await loadLines(c, id)).map(l => ({ ...l, out: 0, in: 0, dmg: 0, lost: 0, repaired: false }));
+  const no: string = (await c.query("select next_order_no() n")).rows[0].n;
+  const keep = ["customer_id", "customer_name", "job_title", "job_type", "dept", "billing", "phone", "fax", "contact", "contact_phone", "dop", "pm", "gaffer",
+    "key_grip", "note", "sale", "rent_type", "dpw", "tax", "ship", "ret", "use_start", "use_end", "footer_id", "remark_id", "extra_disc", "insurance", "adjust"];
+  const money = { extraDisc: src.extra_disc, insurance: src.insurance, adjust: src.adjust, tax: src.tax };
+  const cols: Record<string, unknown> = { id: no, no, owner: "v2", status: "Quote", rev: 0, created_by: who.id, created_by_name: who.name, updated_by: who.id,
+    totals: JSON.stringify(orderTotals(lines, money)), usage: JSON.stringify(usageOf(lines)) };
+  for (const k of keep) cols[k] = src[k];
+  const keys = Object.keys(cols);
+  await c.query(`insert into orders (${keys.join(",")}) values (${keys.map((_, i) => `$${i + 1}`).join(",")})`, keys.map(k => cols[k]));
+  if (lines.length) await insertLines(c, no, lines);
+  await logActivity(c, who, no, "created", { no, copiedFrom: src.no });
+  return { id: no, no, rev: 0 };
+}
+
+/** Store sends damaged items to repair: one ticket per damaged line not yet sent (as on the artifact's check-in). */
+export async function sendToRepair(c: PoolClient, who: Caller, id: string, body: Record<string, unknown>) {
+  if (who.role !== "admin" && who.role !== "store") throw new ApiError(403, "rRole");
+  const o = await openForWrite(c, id, body.rev);
+  if (o.status !== "Shipped" && o.status !== "Returned") throw bad("wrong_status", "Repairs are sent from check-in");
+  const damaged = (await loadLines(c, id)).filter(l => (Number(l.dmg) || 0) > 0 && !l.repaired);
+  if (!damaged.length) throw bad("nothing_to_repair");
+  for (const l of damaged) {
+    await c.query("insert into repairs (order_id, pid, code, description, qty, status, created_by) values ($1,$2,$3,$4,$5,'wait',$6)", [id, l.pid ?? null, l.code ?? null, l.desc ?? null, Number(l.dmg), who.id]);
+    await c.query("update order_lines set repaired = true where order_id = $1 and k = $2", [id, l.k]);
+  }
+  const rev = await finish(c, o, who);
+  await logActivity(c, who, id, "repair_sent", { lines: damaged.map(l => ({ k: l.k, code: l.code, qty: Number(l.dmg) })) });
+  return { id, rev, tickets: damaged.length };
+}
+
+const REPAIR_STATUS = ["wait", "doing", "done", "lost"];
+export async function updateRepair(c: PoolClient, who: Caller, rid: string, body: Record<string, unknown>) {
+  if (who.role !== "admin" && who.role !== "store") throw new ApiError(403, "rRole");
+  const r = (await c.query("select * from repairs where id = $1 for update", [rid])).rows[0];
+  if (!r) throw new ApiError(404, "not_found");
+  const patch: Record<string, unknown> = {};
+  if (body.status !== undefined) { if (!REPAIR_STATUS.includes(String(body.status))) throw bad("bad_status"); patch.status = body.status; }
+  if (body.note !== undefined) patch.note = String(body.note ?? "").slice(0, 2000);
+  if (!Object.keys(patch).length) throw bad("nothing_to_change");
+  const keys = Object.keys(patch);
+  await c.query(`update repairs set ${keys.map((k, i) => `${k} = $${i + 2}`).join(", ")}, updated_at = now() where id = $1`, [rid, ...keys.map(k => patch[k])]);
+  const changed = Object.fromEntries(keys.map(k => [k, [r[k] ?? null, patch[k]]]));
+  await c.query("insert into activity (actor, actor_name, entity, entity_id, action, detail) values ($1,$2,'repair',$3,'repair_update',$4)", [who.id, who.name, rid, { changed, orderId: r.order_id }]);
+  return { id: rid };
 }

@@ -212,3 +212,44 @@ test("activity: one entry per successful change, with who, when and what",{skip}
   const items=activity[1].detail; assert.deepEqual(items.added.map(x=>x.k),["a","g"]);
   const out=activity.find(a=>a.action==="checkout").detail.changed; assert.deepEqual(out,{a:{out:[0,1]}});
 });
+
+test("crew picker: rates by position, repeated positions flagged, department filter, never the cost",{skip},async()=>{
+  const all=ok(await api("sale","GET","/api/crew?q=Test")).crew;
+  assert.deepEqual(all.map(r=>[r.positionId,r.rateNo,r.price,r.priceOt,r.needsReview]).sort(),[[7,1,3000,400,false],[8,1,2500,300,true],[8,2,1,1,true]]);
+  for(const r of all) for(const k of Object.keys(r)) assert.ok(!/cost/i.test(k),`crew lookup leaked ${k}`);
+  assert.equal(all.find(r=>r.positionId===7).posName,"Gaffer");
+  assert.deepEqual(ok(await api("sale","GET","/api/crew?q=Test&dept=2")).crew.map(r=>r.positionId),[8,8]);
+});
+
+test("copy: any job (legacy too) becomes a new v2 quote with counts reset; sale/admin only",{skip},async()=>{
+  const r0=await rev("6900001");
+  assert.equal((await api("store","POST","/api/orders/6900001/copy",{})).status,403);
+  const c=ok(await api("sale","POST","/api/orders/6900001/copy",{}),"copy legacy");
+  const d=ok(await api("sale","GET",`/api/orders/${c.id}`));
+  assert.deepEqual([d.order.owner,d.order.status,d.order.rev,d.order.customer_name,d.order.extra_disc],["v2","Quote",0,"Synthetic Films",5]);
+  assert.equal(d.lines.length,2); for(const l of d.lines) assert.deepEqual([l.out,l.in,l.dmg,l.lost,l.repaired],[0,0,0,0,false]);
+  assert.equal(d.order.totals.total,L.orderTotals(d.lines,{extraDisc:5,tax:"Vat"}).total);
+  assert.equal(d.activity[0].detail.copiedFrom,"6900001");
+  assert.equal(await rev("6900001"),r0,"copying must not touch the legacy job");
+});
+
+test("repairs: damaged items at check-in become tickets once; store/admin manage them",{skip},async()=>{
+  const j=ok(await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Repair job",ship:"2026-12-27",ret:"2026-12-28"}));
+  let r=ok(await api("sale","PUT",`/api/orders/${j.id}/lines`,{rev:0,lines:[{k:"a",t:1,pid:1,code:"M18",desc:"HMI",list:24000,qty:1,days:1}]})).rev;
+  for(const to of ["Order","Approve"]) r=ok(await api("sale","POST",`/api/orders/${j.id}/move`,{rev:r,to})).rev;
+  r=ok(await api("store","POST",`/api/orders/${j.id}/checkout`,{rev:r,all:true})).rev;
+  assert.equal((await api("store","POST",`/api/orders/${j.id}/repairs`,{rev:r})).body.error,"wrong_status");
+  r=ok(await api("store","POST",`/api/orders/${j.id}/move`,{rev:r,to:"Shipped"})).rev;
+  assert.equal((await api("store","POST",`/api/orders/${j.id}/repairs`,{rev:r})).body.error,"nothing_to_repair");
+  r=ok(await api("store","POST",`/api/orders/${j.id}/checkin`,{rev:r,lines:[{k:"a",in:1,dmg:1}]})).rev;
+  assert.equal((await api("sale","POST",`/api/orders/${j.id}/repairs`,{rev:r})).status,403);
+  const sent=ok(await api("store","POST",`/api/orders/${j.id}/repairs`,{rev:r}),"send to repair"); r=sent.rev; assert.equal(sent.tickets,1);
+  assert.equal((await api("store","POST",`/api/orders/${j.id}/repairs`,{rev:r})).body.error,"nothing_to_repair","each damaged line is sent once");
+  const d=ok(await api("store","GET",`/api/orders/${j.id}`)); assert.equal(d.lines[0].repaired,true); assert.equal(d.activity.at(-1).action,"repair_sent");
+  const t=ok(await api("crew","GET","/api/repairs?status=wait")).repairs.find(x=>x.orderId===j.id);
+  assert.deepEqual([t.code,t.qty,t.status,t.orderNo],["M18",1,"wait",j.no]);
+  assert.equal((await api("sale","PATCH",`/api/repairs/${t.id}`,{status:"doing"})).status,403);
+  assert.equal((await api("store","PATCH",`/api/repairs/${t.id}`,{status:"broken"})).body.error,"bad_status");
+  ok(await api("store","PATCH",`/api/repairs/${t.id}`,{status:"doing",note:"Lamp cracked"}));
+  const after=ok(await api("store","GET","/api/repairs")).repairs.find(x=>x.id===t.id); assert.deepEqual([after.status,after.note],["doing","Lamp cracked"]);
+});
