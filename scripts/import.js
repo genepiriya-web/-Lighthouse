@@ -70,8 +70,10 @@ async function importExport(c,dir,{log=()=>{}}={}){
       default_disc:n0(r.disc),billing_addr:str(r.addr),phone:str(r.phone),fax:str(r.fax),source:"legacy",flagged_new:false,flag_note:null,updated_at:new Date().toISOString()}));
     counts.customers=await upsert(c,"customers","id",cust,{guard:"customers.source = 'legacy'"});
     const taxRows=X.customers.filter(r=>str(r.tax)).map(r=>({customer_id:String(r.id),tax_id:String(r.tax).trim()}));
-    await c.query("delete from customer_tax_ids where customer_id = any($1::text[]) and not (customer_id = any($2::text[]))",[cust.map(r=>r.id),taxRows.map(r=>r.customer_id)]);
-    counts.customer_tax_ids=await upsert(c,"customer_tax_ids","customer_id",taxRows);
+    // Tax IDs follow their customer's owner: a customer edited in v2 (source 'v2') keeps the tax ID entered in v2.
+    const legacyCust=new Set((await c.query("select id from customers where source='legacy'")).rows.map(r=>r.id));
+    await c.query("delete from customer_tax_ids where customer_id = any($1::text[]) and not (customer_id = any($2::text[]))",[cust.map(r=>r.id).filter(id=>legacyCust.has(id)),taxRows.map(r=>r.customer_id)]);
+    counts.customer_tax_ids=await upsert(c,"customer_tax_ids","customer_id",taxRows.filter(r=>legacyCust.has(r.customer_id)));
 
     counts.crew=await upsert(c,"crew","id",X.crew.map(r=>({id:String(r.id),code:str(r.code),first_name:str(r.first),last_name:str(r.last),nick:str(r.nick),
       description:str(r.desc),enabled:r.enable==null?true:bool(r.enable),updated_at:new Date().toISOString()})));
