@@ -34,7 +34,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function Shell({ children, wide = true }: { children: React.ReactNode; wide?: boolean }) {
-  const { t, lang, setLang, me, meState } = useApp(); const router = useRouter();
+  const { t, lang, setLang, me, meState } = useApp(); const router = useRouter(); const path = usePathname();
   const signOut = () => { document.cookie = "lhd_dev_user=; path=/; max-age=0"; router.push("/dev-login"); };
   return (
     <>
@@ -47,7 +47,8 @@ export function Shell({ children, wide = true }: { children: React.ReactNode; wi
             {me && <button className="btn sm ghost" type="button" onClick={signOut}>{t("signOut")}</button>}
           </div>
         </div>
-        <nav className="tabs pad" role="tablist"><Link className="tab" role="tab" aria-selected="true" href="/jobs">{t("jobs")}</Link></nav>
+        <nav className="tabs pad" role="tablist">{[["/jobs", "jobs"], ["/repairs", "repair"]].map(([href, k]) =>
+          <Link key={href} className="tab" role="tab" aria-selected={path.startsWith(href)} href={href}>{t(k)}</Link>)}</nav>
       </header>
       <main className="wrap pad" style={wide ? undefined : { maxWidth: 900 }}>
         {meState === "signed_out" ? <div className="empty"><p>{t("signedOut")}</p><Link className="btn primary" href="/dev-login">{t("signInAs")}</Link></div>

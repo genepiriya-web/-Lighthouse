@@ -29,7 +29,7 @@ function NewJob() {
           <label className="field span2"><span>{t("h_cust")}</span>
             <input className="inp" value={cq} autoComplete="off" onChange={e => { setCq(e.target.value); setF({ ...f, customerId: "", customerName: "" }); }} placeholder={t("searchCustName")} />
             {hits.length > 0 && <div className="results">{hits.map(h => <button key={h.id} type="button" className="res btn ghost" style={{ justifyContent: "space-between", borderRadius: 0 }}
-              onClick={() => { setF({ ...f, customerId: h.id, customerName: h.name }); setCq(h.name); setHits([]); }}><span>{h.name}</span><span className="muted small">{h.code}{h.flagged_new ? " · new" : ""}</span></button>)}</div>}
+              onClick={() => { setF({ ...f, customerId: h.id, customerName: h.name }); setCq(h.name); setHits([]); }}><span>{h.name}</span><span className="muted small">{h.code}{h.flagged_new ? ` · ${t("flaggedNew")}` : ""}</span></button>)}</div>}
           </label>
           <label className="field span2"><span>{t("h_title")}</span><input className="inp" value={f.jobTitle ?? ""} onChange={set("jobTitle")} /></label>
           <label className="field"><span>{t("h_jt")}</span><select className="inp" value={f.jobType ?? ""} onChange={set("jobType")}><option value="">{t("pick")}</option>{["CO-PRO", "FILM", "SP", "TVC", "TVD"].map(x => <option key={x}>{x}</option>)}</select></label>
