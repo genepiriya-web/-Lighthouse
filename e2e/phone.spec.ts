@@ -81,3 +81,28 @@ test("sale → store → CEO → store: special price blocks shipping until conf
   await expect(page.getByRole("heading", { name: "Repairs" })).toBeVisible();
   await noSidewaysScroll(page, "repairs");
 });
+
+test("master data screens fit the phone; sale checks a flagged customer; store updates stock", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("lhd-lang", "en"));
+  await as(page, "admin");
+  for (const [path, heading] of [["/catalog", "Catalog"], ["/customers", "Customers"], ["/crew", "Crew rates"], ["/team", "Team"], ["/settings", "Settings"], ["/catalog/1", "M18 · Synthetic HMI 18K"]]) {
+    await page.goto(path); await expect(page.getByRole("heading", { name: heading })).toBeVisible(); await noSidewaysScroll(page, path);
+  }
+  await as(page, "sale");
+  await page.goto("/customers");
+  await page.getByRole("button", { name: "New customers to check" }).click();
+  await page.locator("a.jrow", { hasText: "Synthetic Films" }).click();
+  await expect(page.getByText(/not in the old system's customer list/)).toBeVisible();
+  await noSidewaysScroll(page, "customer (flagged)");
+  await page.getByRole("button", { name: "Mark as checked" }).click();
+  await expect(page.getByRole("button", { name: "Mark as checked" })).toHaveCount(0);
+
+  await as(page, "store");
+  await page.goto("/catalog/2");
+  const stock = page.locator("label", { hasText: "Stock" }).locator("input");
+  await stock.fill("12");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Edited in v2")).toBeVisible();
+  await expect(stock).toHaveValue("12");
+  await noSidewaysScroll(page, "catalog item (store)");
+});

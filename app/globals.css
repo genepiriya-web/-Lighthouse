@@ -156,3 +156,6 @@ details.sec>summary{cursor:pointer;list-style:none} details.sec>summary::-webkit
 details.sec>summary h3::after{content:"▾";font-size:14px;color:var(--muted)} details.sec:not([open])>summary h3::after{content:"▸"}
 .jrow.rrow{grid-template-columns:90px minmax(0,2fr) 60px 110px 150px minmax(0,1.4fr)}
 @media (max-width:640px){ .jrow.rrow{grid-template-columns:auto 1fr} }
+.jrow.crow{grid-template-columns:110px minmax(0,2.4fr) minmax(0,1fr) minmax(0,1.3fr) minmax(0,1.2fr)}
+@media (max-width:640px){ .jrow.crow{grid-template-columns:auto 1fr} .jrow.crow .num.d{grid-column:1/-1} }
+.person{flex-wrap:wrap}
