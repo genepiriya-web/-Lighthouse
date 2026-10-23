@@ -1,6 +1,6 @@
 # Lighthouse Dispatch — plan to move daily work into v2
 
-Status: **approved by Gene 23 Oct 2026** · M1–M4 done (all screens) · next: M5 crew IDs, M6 Supabase + go-live · all on local Postgres (Supabase project not created yet).
+Status: **approved by Gene 23 Oct 2026** · M1–M5 done · next: M6 Supabase, backups, real sign-in, pilot · all on local Postgres (Supabase project not created yet).
 
 ### Progress
 | Milestone | State | Evidence |
@@ -13,6 +13,7 @@ Status: **approved by Gene 23 Oct 2026** · M1–M4 done (all screens) · next: 
 | M4 Screens, slice 2 | Done locally | Crew picker on jobs (position rates, OT rate, repeated-rate flag, never cost), copy any job (legacy too) as a new quote, send damaged items to repair + Repairs screen. `npm run test:e2e`: Playwright at 390 × 844 walks a job sale → store → CEO → store and checks every screen for content past the screen edge. The real data was also checked by hand (198-job list, a 123-line legacy job) |
 | M4 Screens, slice 3 | Done locally | Catalog (admin/store add/edit, packages), Customers (admin/sale add/edit, tax ID only for admin/sale/accounting and never logged, flagged-new review), Crew rates (view only, cost for admin/crew), Team (admin: roles, switch off, never yourself), Settings (admin: company details). Editing an old-system record makes v2 its owner so imports don't overwrite it. `npm run test:master` (7) + phone test. Real data checked by hand at 390 px |
 | M4 Screens, slice 4 | Done locally | Cockpit (admin; problems, money, equipment). Store day view. Quotation / Draft INV / Item list with or without discount, as an HTML download and a sandboxed preview. `lib/docs.js` produces byte-identical HTML to the artifact for all 5 variants (`tests/docs.test.js` runs the artifact's own code to compare). On the real data the server Cockpit matches `diagnose()` on the original export exactly: 59 problems by kind, ฿2,071,742.48 confirmed. Only the 2 local test jobs add 2 "price changed" flags |
+| M5 Crew national IDs | Done locally | Admin-only. Stored encrypted (AES-256-GCM, key `CREW_ID_KEY` outside the database); only the last 3 digits in clear for the mask. No client role can read the tables, admin included, so every full ID goes through the server: each "Show" and each client-link opening is logged (who/when/which crew or link), never the ID itself. Import by paste or file with checksum, matched by code / crew number / name, preview masked before saving. The CSV download is replaced by expiring client links: hours chosen, view limit, revocable, full or masked, token shown once and only its hash stored. Opening a link shows a button only; IDs are sent on the tap (POST), so LINE link previews never receive them. `npm run test:crewids` (7) + phone test |
 
 **M2 import of the 23 Oct export:** 3,275 products, 192 kit parts, 1,249 customers (1,247 from the old list plus 2 flagged new; 1,047 with tax IDs), 784 crew, 2,582 crew rates (2 marked for review), 106 positions, 209 jobs (all linked to a customer), 3,848 lines, 418 history entries. It took about 0.5 s and skipped nothing.
 
@@ -317,6 +318,11 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
     - **The importer now recomputes totals and stock usage with `logic.js`** instead of copying the artifact's cached values (flaw 7). On the 209 real jobs the values are identical, field by field; a job without cached totals would otherwise have shown as a false "mismatch".
     - **Remark/footer templates come from the old system as HTML.** Documents keep only plain text tags (p, br, b, strong, i, em, u, ul, ol, li, span, div) with no attributes. The preview runs in a sandboxed frame under a no-script content policy.
     - **Documents aren't logged as activity** (viewing isn't a change), same as the artifact. The crew-ID list is different: it will be logged on every view and download (M5).
+32. **Crew IDs (M5): what you need to know.**
+    - **Moving the IDs over.** The IDs in the artifact's secured store were not exported (rule 2). An admin imports them into v2 from your own file with **Crew rates → Import national IDs**, as you did for the artifact.
+    - **`CREW_ID_KEY` is the only way to read the stored IDs.** Production needs its own key in the hosting settings, kept somewhere safe apart from the database backups. If it's lost, the IDs have to be imported again; nothing else is affected.
+    - **Q8 again: does a production need the full ID, or masked?** Both work; the default is full, as the artifact's CSV was.
+    - **The link token is part of the web address,** so the hosting provider's request logs may record it. Only a hash is stored in the database, and links expire (at most 7 days) and can be revoked.
 28. **Local test sign-in.** `/dev-login` lets you pick one of five made-up staff (`node scripts/dev-staff.js`). It works only with `LHD_AUTH=dev` against a database on this Mac. Real sign-in replaces it in M6.
     - **Q24:** some "below catalog" lines may be quotes made before a catalog price went up, not discounts. Should a job keep the catalog price from the day it was quoted?
     - **Q25, decided by Gene on 23 Oct 2026: no.** Sales can still mark lines FOC or standby, as today. Every change, including FOC, is recorded in the activity log.

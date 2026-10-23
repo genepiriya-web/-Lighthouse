@@ -22,6 +22,7 @@ npm run test:db    # RLS, ownership, append-only log, order numbers, importer id
 npm run test:orders # order API end to end, as each role (after npm run build)
 npm run test:master # catalog, customers, crew rates, team, settings — roles, privacy, re-import safety
 npm run test:slice4 # cockpit (admin) and job documents over HTTP
+npm run test:crewids # crew national IDs: admin-only, encrypted, logged, client links
 npm run test:e2e   # Playwright at 390 px: a job's life as sale → store → CEO → store (after npm run build)
 ```
 
@@ -50,12 +51,17 @@ All writes need `rev` (the version you read) and return the new `rev`; a stale `
 | GET / PATCH | `/api/staff`, `/api/staff/:id` `{ role, active }` | admin (not yourself) |
 | GET / PUT | `/api/settings`, `/api/settings/company` | read: any staff · change: admin |
 | GET | `/api/cockpit` | admin (logic.js `diagnose` over all open jobs) |
+| GET · POST | `/api/crew-ids` (masked) · `/api/crew-ids/import` `{ text, save }` | admin |
+| POST · DELETE | `/api/crew-ids/:crewId/reveal` (logged) · `/api/crew-ids/:crewId` | admin |
+| GET · POST | `/api/orders/:id/crew` · `/api/orders/:id/crew-links` `{ recipient, hours, show }` | admin; the link is returned once |
+| POST | `/api/crew-links/:linkId/revoke` | admin |
+| GET · POST | `/share/crew/:token` | anyone with the link: GET shows a button, POST shows the list (counted, logged) |
 | GET | `/api/orders/:id/document?kind=quote\|draft\|items&disc=1\|0` | any staff (HTML file, as the artifact downloaded) |
 
 ### Try the screens locally
 ```bash
 npm run db:start && npm run db:migrate && npm run db:import
-node scripts/dev-staff.js          # five made-up staff, one per role
+node scripts/dev-staff.js          # five made-up staff, one per role (db:start also writes a local CREW_ID_KEY)
 npm run build
 LHD_AUTH=dev npm start             # then open http://localhost:3000/dev-login
 ```
