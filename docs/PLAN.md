@@ -1,6 +1,6 @@
 # Lighthouse Dispatch — plan to move daily work into v2
 
-Status: **approved by Gene 23 Oct 2026** · M1 done · M2 done on local Postgres (Supabase project not created yet).
+Status: **approved by Gene 23 Oct 2026** · M1 done · M2 and M3 done on local Postgres (Supabase project not created yet).
 
 ### Progress
 | Milestone | State | Evidence |
@@ -8,6 +8,7 @@ Status: **approved by Gene 23 Oct 2026** · M1 done · M2 done on local Postgres
 | Parity snapshot | Done | 209/209 jobs and 783/783 lines match the old system (`npm test`). Fixture is pricing fields only, git-ignored |
 | M1 Next.js + shared logic | Done | `/api/totals` and the browser give identical totals on all 209 jobs (`npm run test:api`); no sideways scroll at 390 px |
 | M2 Schema, RLS, importer | Done locally | `npm run test:db`, 11 tests: RLS forced on every table; no client role (admin included) can write; store can't change prices or move Quote→Order; legacy jobs read-only even to the server; activity append-only; 20 concurrent order numbers unique; import twice = identical rows; all 209 jobs still match the old system when read back from Postgres |
+| M3 Order API | Done locally | `npm run test:orders`, 11 end-to-end tests over HTTP on a throwaway database. Store gets 403 changing items/prices or moving Quote→Order. Every guard (customer, dates, items, stock clash across legacy + v2, check-out, check-in) returns its reason. Two saves from one `rev`: one wins, one gets 409. Legacy jobs 409 on every endpoint. One activity row per change. A mutation check (disabling the rev and role checks) made 5 tests fail |
 
 **M2 import of the 23 Oct export:** 3,275 products, 192 kit parts, 1,249 customers (1,247 from the old list plus 2 flagged new; 1,047 with tax IDs), 784 crew, 2,582 crew rates (2 marked for review), 106 positions, 209 jobs (all linked to a customer), 3,848 lines, 418 history entries. It took about 0.5 s and skipped nothing.
 
@@ -288,6 +289,14 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
 11. PDPA: is hosting in Singapore acceptable? Who is the data controller contact?
 12. Budget ceiling for hosting per month?
 13. Where is `lighthouse-dispatch-handoff.zip`? If it exists, its tests should be merged with these.
+
+### Found during M3
+21. **Sales can change an item's price and give more discount than the item allows.** Today's spec (`logic.js`) and the artifact both allow it; the Cockpit only flags it afterwards ("Price changed", "Discount breaks rule"). The server copies that behaviour. Options:
+    - (a) Keep as is. Pro: matches today's work. Con: relies on someone reading the Cockpit.
+    - (b) The server refuses a price below the catalog price, or a discount above `maxDisc`, unless an admin does it. Pro: stops mistakes at the source. Con: one more approval step for sales.
+    - (c) Allow it, but require a reason that goes into the activity log. Pro: no blocking, still accountable. Con: reasons can be vague.
+22. **Not built in M3, still on the artifact only:** copy job as new quote; send damaged items to repair from check-in; catalog/customer edits; Cockpit. They come with M4 (screens), unless you want them earlier.
+23. **"Adjust sub total to"** is stored as a fixed ฿ amount (`adjust`), as in the old system. The server accepts the amount. The screen will work it out from the target total, as the artifact does.
 
 ### Found during M2 (Gene answered 23 Oct 2026)
 | # | Question | Gene's answer | Done |

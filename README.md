@@ -19,6 +19,24 @@ npm run db:start   # local Postgres 17 on 127.0.0.1:54329 (no Homebrew/Docker; d
 npm run db:migrate # schema + row-level security
 npm run db:import  # load data/export (artifact db dump) — safe to re-run
 npm run test:db    # RLS, ownership, append-only log, order numbers, importer idempotency
+npm run test:orders # order API end to end, as each role (after npm run build)
 ```
+
+### Order API (M3)
+All writes need `rev` (the version you read) and return the new `rev`; a stale `rev` gets `409 stale`. Legacy jobs answer `409 legacy_read_only`.
+
+| Method | Path | Who |
+| --- | --- | --- |
+| GET | `/api/me` | any staff |
+| GET | `/api/orders?status=open&q=&limit=&before=` | any staff |
+| POST | `/api/orders` | sale, admin |
+| GET | `/api/orders/:id` (job, lines, activity) | any staff |
+| PATCH | `/api/orders/:id` (details; extraDisc/insurance/adjust) | details: sale (Quote/Order), admin · money: also accounting |
+| PUT | `/api/orders/:id/lines` | sale (Quote/Order), admin (to Approve) |
+| POST | `/api/orders/:id/move` `{ to }` | per `moveCheck` in `logic.js` |
+| POST | `/api/orders/:id/checkout` / `checkin` | store, admin |
+| POST | `/api/orders/:id/fix-status` `{ to, reason }` | admin |
+
+Locally, run `LHD_AUTH=dev npm start` and send `x-dev-user: <staff user id>`. Real sign-in comes with Supabase (M6).
 
 See `CLAUDE.md` for the rules and `docs/PLAN.md` for the move to a standalone app.

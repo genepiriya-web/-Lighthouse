@@ -26,10 +26,16 @@ Gene (MD) decides. Give pros and cons for every proposal. Never guess facts: wri
 - `activity` is append-only for everyone. `customer_tax_ids` (individuals' tax ID = national ID): admin/sale/accounting only. `crew_rate_costs`: admin/crew only.
 - Don't edit an applied migration once it has run on Supabase; add a new one. (Before then, editing `…_init.sql` and resetting local is fine.)
 
+## Server rules (enforced by tests/orders-api.test.js)
+- Every change to a job goes through `lib/server/orders.ts`, inside `tx()` (service_role). It locks the row, refuses legacy jobs (409 `legacy_read_only`), checks the role with `logic.js` (`moveCheck`, `canEditLines`) plus the artifact's header/money/store rules, checks `rev` (409 `stale`), recomputes totals/usage from stored lines, bumps `rev`, and writes one `activity` row. Never trust totals sent by a client.
+- Routes in `app/api/**` stay thin: parse, `requireStaff`, call the service.
+- `LHD_AUTH=dev` (header `x-dev-user`) is for local dev/tests only and refuses to run unless `DATABASE_URL` is on this machine. Real sign-in (Supabase) is M6; until then every non-dev request is 401.
+
 ## Commands
 - `npm run build` (artifact page + Next.js) · `npm run build:artifact` · `npm run typecheck`
 - `npm test` (unit + parity) · `npm run test:ui` (jsdom, artifact page) · `npm run test:api` (starts the built app, prices every parity job via the API)
 - `npm run db:start` · `npm run db:migrate` · `npm run db:import` · `npm run test:db` (throwaway database per run) · `npm run db:stop`
+- `npm run test:orders` — starts the built app on a throwaway database and drives the order API as each role (needs `npm run build` + local Postgres)
 - Parity is skipped until `data/parity.json` exists. Build it with `node scripts/make-parity.js <artifact-db-export-dir>`.
 - Pin dependency versions exactly, and only to releases at least two weeks old.
 
