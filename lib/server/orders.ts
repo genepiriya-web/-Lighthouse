@@ -11,7 +11,7 @@ import {
   type Line, type Order, type Status,
 } from "../logic";
 import { ApiError, bad } from "./http";
-import { priceBreaks, unapproved, type PriceBreak, type PriceApproval } from "../rules";
+import { priceBreaks, unapproved, canEditHeader, canEditMoney, type PriceBreak, type PriceApproval } from "../rules";
 import type { Caller } from "./auth";
 
 // ---------- shapes ----------
@@ -106,9 +106,6 @@ function cleanMoney(k: MoneyKey, v: unknown): number {
   return r2(n); // adjust may be negative
 }
 
-// The artifact's edit permissions (src/app.html sheetOrder / itemsSection).
-const canEditHeader = (role: Caller["role"], s: Status) => (role === "admin" && s !== "Draft INV") || (role === "sale" && (s === "Quote" || s === "Order"));
-const canEditMoney = (role: Caller["role"], s: Status) => s !== "Draft INV" && (role === "admin" || role === "accounting" || (role === "sale" && (s === "Quote" || s === "Order")));
 
 async function resolveCustomer(c: PoolClient, fields: Record<string, unknown>) {
   // Prefer the customer id (fixes L4: the artifact matched by name). Fill billing/phone from the customer when empty.
@@ -140,7 +137,8 @@ export async function getOrder(c: PoolClient, id: string) {
   const activity = (await c.query("select at, actor_name, action, detail from activity where entity='order' and entity_id=$1 order by at, id", [id])).rows;
   const lines = await loadLines(c, id);
   const needsCeo = unapproved(await priceBreaksOf(c, lines), r.rows[0].price_approval);
-  return { order: r.rows[0], lines, activity, needsCeo };
+  const customer = r.rows[0].customer_id ? (await c.query("select id, name, default_disc from customers where id = $1", [r.rows[0].customer_id])).rows[0] ?? null : null;
+  return { order: r.rows[0], lines, activity, needsCeo, customer };
 }
 
 // ---------- writes ----------

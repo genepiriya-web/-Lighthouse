@@ -1,6 +1,7 @@
 // Who is calling, and what role they have.
 //
-// LHD_AUTH=dev  — local development and tests only. The caller's user id comes from the `x-dev-user` header.
+// LHD_AUTH=dev  — local development and tests only. The caller's user id comes from the `x-dev-user` header, or the
+//                 `lhd_dev_user` cookie set by the /dev-login picker.
 //                 Refused unless DATABASE_URL points at this machine (127.0.0.1 / localhost / ::1), so it can never
 //                 be switched on against a hosted database by a stray environment variable.
 // otherwise     — Supabase session verification. Not built yet (M6, once the Supabase project exists): every
@@ -16,10 +17,16 @@ export interface Caller { id: string; name: string; role: Exclude<Role, "none">;
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export function devAuthOn(): boolean {
+  if (process.env.LHD_AUTH !== "dev") return false;
+  if (!LOOPBACK.has(dbHost())) throw new ApiError(500, "dev_auth_refused", "LHD_AUTH=dev only works against a local database");
+  return true;
+}
+
 export function callerId(req: Request): string | null {
-  if (process.env.LHD_AUTH === "dev") {
-    if (!LOOPBACK.has(dbHost())) throw new ApiError(500, "dev_auth_refused", "LHD_AUTH=dev only works against a local database");
-    const id = req.headers.get("x-dev-user");
+  if (devAuthOn()) {
+    const cookie = /(?:^|;\s*)lhd_dev_user=([^;]+)/.exec(req.headers.get("cookie") ?? "")?.[1];
+    const id = req.headers.get("x-dev-user") ?? (cookie ? decodeURIComponent(cookie) : null);
     return id && UUID.test(id) ? id : null;
   }
   return null;

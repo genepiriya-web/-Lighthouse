@@ -6,7 +6,7 @@
 //   not discountable → no discount at all; maxDisc > 0 → that cap; maxDisc 0 → no cap.
 // Lines without a catalog price to compare against are exempt, as in the Cockpit: package parts (priced by the kit),
 // crew and freelance (priced by crew rates), lines with no product, and FOC/standby lines (priced 0 by design).
-import type { Line, Product } from "./logic";
+import type { Line, Product, Role, Status } from "./logic";
 
 export interface PriceBreak { k: string; code: string; rule: "below_catalog" | "no_discount" | "over_max_disc"; value: number; limit: number; }
 
@@ -28,3 +28,8 @@ export function unapproved(current: PriceBreak[], approval: PriceApproval | null
   const ok = new Set((approval?.breaks ?? []).map(b => `${b.k}|${b.rule}|${b.value}`));
   return current.filter(b => !ok.has(`${b.k}|${b.rule}|${b.value}`));
 }
+
+// Who may edit what — the artifact's own UI rules (src/app.html sheetOrder / itemsSection), shared by server and screens.
+export const canEditHeader = (role: Role | string, s: Status | string) => (role === "admin" && s !== "Draft INV") || (role === "sale" && (s === "Quote" || s === "Order"));
+export const canEditMoney = (role: Role | string, s: Status | string) => s !== "Draft INV" && (role === "admin" || role === "accounting" || (role === "sale" && (s === "Quote" || s === "Order")));
+export const canStore = (role: Role | string) => role === "admin" || role === "store";
