@@ -6,3 +6,4 @@ data/
 .next/
 next-env.d.ts
 *.tsbuildinfo
+.pgdata/

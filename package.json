@@ -11,18 +11,28 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/logic.test.js tests/parity.test.js",
     "test:ui": "node --test tests/ui.test.js",
-    "test:api": "node --test tests/api.test.js"
+    "test:api": "node --test tests/api.test.js",
+    "db:start": "node scripts/db.js start",
+    "db:stop": "node scripts/db.js stop",
+    "db:migrate": "node scripts/migrate.js",
+    "db:import": "node scripts/import.js",
+    "test:db": "node --test --test-concurrency=1 tests/db.test.js"
   },
   "devDependencies": {
     "@types/node": "24.19.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "embedded-postgres": "17.10.0-beta.17",
     "jsdom": "26.1.0",
     "typescript": "6.0.3"
   },
   "dependencies": {
     "next": "16.3.8",
+    "pg": "8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0"
+  },
+  "allowScripts": {
+    "@embedded-postgres/darwin-x64@17.10.0-beta.17": true
   }
 }
