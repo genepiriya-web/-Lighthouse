@@ -301,7 +301,7 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
     - **Exempt, as in the Cockpit:** kit parts, crew/freelance lines, lines with no catalog item, and FOC/standby.
     - **Logged:** every confirmation is in the activity log.
     - **Impact on today's data:** 23 of 209 jobs (11%) have at least one line that would need the CEO before shipping.
-    - **Assumptions to confirm (Q26):** (1) the gate is the move to **Shipped**, not Order or Approve; (2) "CEO" means the **admin role**, since there's no separate CEO role.
+    - **Q26, confirmed by Gene on 23 Oct 2026:** the gate is the move to **Shipped**, and "CEO" means the **admin role**.
 27. **New Thai text needs a native-speaker check.** About 30 strings the artifact never had are written in `lib/i18n.ts` (`extra.th`): test sign-in, CEO price confirmation, save items, reload, legacy notice, and the new history entries. Everything else is the artifact's own text, copied word for word.
 28. **Local test sign-in.** `/dev-login` lets you pick one of five made-up staff (`node scripts/dev-staff.js`). It works only with `LHD_AUTH=dev` against a database on this Mac. Real sign-in replaces it in M6.
     - **Q24:** some "below catalog" lines may be quotes made before a catalog price went up, not discounts. Should a job keep the catalog price from the day it was quoted?
