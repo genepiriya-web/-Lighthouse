@@ -4,11 +4,25 @@
   "private": true,
   "description": "Rental workflow app for Lighthouse Film Service (v2, single-page Claude Artifact)",
   "scripts": {
-    "build": "node scripts/build.js",
+    "dev": "next dev",
+    "build": "node scripts/build.js && next build",
+    "build:artifact": "node scripts/build.js",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
     "test": "node --test tests/logic.test.js tests/parity.test.js",
-    "test:ui": "node --test tests/ui.test.js"
+    "test:ui": "node --test tests/ui.test.js",
+    "test:api": "node --test tests/api.test.js"
   },
   "devDependencies": {
-    "jsdom": "26.1.0"
+    "@types/node": "24.19.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "jsdom": "26.1.0",
+    "typescript": "6.0.3"
+  },
+  "dependencies": {
+    "next": "16.3.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   }
 }
