@@ -16,9 +16,14 @@ Gene (MD) decides. Give pros and cons for every proposal. Never guess facts: wri
 - `snapshot/published.html` — the live artifact as of version 1792642455-d04d. `test:ui` checks the build matches it; update it only when you republish.
 - `data/` — git-ignored. Exports of real data (parity fixtures, master data) live here and never get committed.
 
+- `lib/logic.ts` — the only way the Next.js app imports `src/logic.js` (typed by `src/logic.d.ts`). Server routes and client components both use it.
+- `app/` — Next.js (App Router). `app/api/totals` prices a job on the server; `app/price-check.tsx` prices it in the browser.
+
 ## Commands
-- `npm run build` · `npm test` (unit + parity) · `npm run test:ui` (jsdom smoke tests)
-- Parity is skipped until `data/parity.json` exists. See `tests/parity.test.js` for the format.
+- `npm run build` (artifact page + Next.js) · `npm run build:artifact` · `npm run typecheck`
+- `npm test` (unit + parity) · `npm run test:ui` (jsdom, artifact page) · `npm run test:api` (starts the built app, prices every parity job via the API)
+- Parity is skipped until `data/parity.json` exists. Build it with `node scripts/make-parity.js <artifact-db-export-dir>`.
+- Pin dependency versions exactly, and only to releases at least two weeks old.
 
 ## Where things came from
 v2 was built by Claude reading the old system in a browser (read-only) and copying its behaviour. The logic is inferred from screens and totals, not from the old system's source. Treat any rule not marked "matches old system" in `docs/PLAN.md` as unconfirmed.
