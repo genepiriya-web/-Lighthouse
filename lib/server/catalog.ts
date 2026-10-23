@@ -1,4 +1,4 @@
-// Read-only lookups for the job screens: products (with package parts) and customers. Tax IDs are never returned here.
+// Read-only lookups for the job screens: products (with package parts), crew rates and repair tickets.
 import "server-only";
 import type { PoolClient } from "pg";
 
@@ -13,12 +13,6 @@ export async function searchProducts(c: PoolClient, q: { q?: string; type?: numb
       coalesce((select json_agg(json_build_array(k.child_id, k.ratio, k.price) order by k.child_id) from kit_parts k where k.parent_id = p.id), '[]') as kit,
       coalesce((select json_agg(json_build_object('id', ch.id, 'code', ch.code, 'desc', ch.description)) from kit_parts k join products ch on ch.id = k.child_id where k.parent_id = p.id), '[]') as "kitProducts"
     from products p ${where.length ? "where " + where.join(" and ") : ""} order by p.sort nulls last, p.code limit $${args.length}`, args);
-  return r.rows;
-}
-
-export async function searchCustomers(c: PoolClient, q: string, limit = 20) {
-  const r = await c.query(`select id, code, name, job_type, default_disc, billing_addr, phone, flagged_new from customers
-    where name ilike $1 or code ilike $1 order by name limit $2`, [`%${q}%`, Math.max(1, Math.min(100, limit))]);
   return r.rows;
 }
 
