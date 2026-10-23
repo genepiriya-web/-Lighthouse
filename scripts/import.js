@@ -3,7 +3,7 @@
 // Never touches v2-owned rows (orders.owner = 'v2', products/customers.source = 'v2'). Never reads `secure` (crew IDs).
 //   node scripts/import.js [export-dir]     (default data/export; DATABASE_URL from env or .env.local)
 const fs=require("fs"), path=require("path"); const {Client}=require("pg");
-require("./env");
+require("./env"); const L=require("../src/logic.js");
 
 const J=f=>JSON.parse(fs.readFileSync(f,"utf8"));
 const docs=(dir,col)=>{ const d=path.join(dir,col); return fs.existsSync(d)?fs.readdirSync(d).filter(f=>f.endsWith(".json")).sort().map(f=>J(path.join(d,f))):[]; };
@@ -112,7 +112,10 @@ async function importExport(c,dir,{log=()=>{}}={}){
         job_title:str(o.jobTitle),job_type:str(o.jobType),dept:num(o.dept),billing:str(o.billing),phone:str(o.phone),fax:str(o.fax),contact:str(o.contact),contact_phone:str(o.contactPhone),
         dop:str(o.dop),pm:str(o.pm),gaffer:str(o.gaffer),key_grip:str(o.keyGrip),note:str(o.note),sale:str(o.sale),rent_type:o.rentType==="Weekly"?"Weekly":"Daily",dpw:num(o.dpw),
         tax:o.tax==="Not Vat"?"Not Vat":"Vat",ship:date(o.ship),ret:date(o.ret),use_start:date(o.useStart),use_end:date(o.useEnd),footer_id:str(o.footerId),remark_id:str(o.remarkId),
-        extra_disc:n0(o.extraDisc),insurance:n0(o.insurance),adjust:n0(o.adjust),totals:o.totals??null,usage:o.usage??null,legacy_totals:o.legacyTotals??null,rev:Math.trunc(n0(o.rev)),
+        extra_disc:n0(o.extraDisc),insurance:n0(o.insurance),adjust:n0(o.adjust),
+        // Totals and stock usage are a cache (flaw 7): recomputed here with logic.js from the job's lines, never copied.
+        totals:L.orderTotals(X.lines[o.id]||[],{extraDisc:n0(o.extraDisc),insurance:n0(o.insurance),adjust:n0(o.adjust),tax:o.tax==="Not Vat"?"Not Vat":"Vat"}),
+        usage:L.usageOf(X.lines[o.id]||[]),legacy_totals:o.legacyTotals??null,rev:Math.trunc(n0(o.rev)),
         created_at:o.createdAt||new Date().toISOString(),created_by:null,created_by_name:str(o.createdByName),updated_at:o.updatedAt||o.createdAt||new Date().toISOString(),updated_by:null}; });
     const v2Clash=(await c.query("select id from orders where owner='v2' and (id = any($1::text[]) or no = any($2::text[]))",[orders.map(o=>o.id),orders.map(o=>o.no)])).rows.map(r=>r.id);
     if(v2Clash.length) skipped.orderOwnedByV2=v2Clash.length;
