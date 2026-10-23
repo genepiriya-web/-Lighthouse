@@ -321,7 +321,7 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
 32. **Crew IDs (M5): what you need to know.**
     - **Moving the IDs over.** The IDs in the artifact's secured store were not exported (rule 2). An admin imports them into v2 from your own file with **Crew rates → Import national IDs**, as you did for the artifact.
     - **`CREW_ID_KEY` is the only way to read the stored IDs.** Production needs its own key in the hosting settings, kept somewhere safe apart from the database backups. If it's lost, the IDs have to be imported again; nothing else is affected.
-    - **Q8 again: does a production need the full ID, or masked?** Both work; the default is full, as the artifact's CSV was.
+    - **Q8, answered by Gene on 23 Oct 2026:** productions need the full ID. Full stays the default; masked links remain an option.
     - **The link token is part of the web address,** so the hosting provider's request logs may record it. Only a hash is stored in the database, and links expire (at most 7 days) and can be revoked.
 28. **Local test sign-in.** `/dev-login` lets you pick one of five made-up staff (`node scripts/dev-staff.js`). It works only with `LHD_AUTH=dev` against a database on this Mac. Real sign-in replaces it in M6.
     - **Q24:** some "below catalog" lines may be quotes made before a catalog price went up, not discounts. Should a job keep the catalog price from the day it was quoted?
