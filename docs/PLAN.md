@@ -9,11 +9,7 @@ Status: **approved by Gene 23 Oct 2026** · M1 done · M2 done on local Postgres
 | M1 Next.js + shared logic | Done | `/api/totals` and the browser give identical totals on all 209 jobs (`npm run test:api`); no sideways scroll at 390 px |
 | M2 Schema, RLS, importer | Done locally | `npm run test:db`, 11 tests: RLS forced on every table; no client role (admin included) can write; store can't change prices or move Quote→Order; legacy jobs read-only even to the server; activity append-only; 20 concurrent order numbers unique; import twice = identical rows; all 209 jobs still match the old system when read back from Postgres |
 
-**M2 import of the 23 Oct export:** 3,275 products, 192 kit parts, 1,247 customers (1,047 with tax IDs), 784 crew, 2,581 crew rates, 106 positions, 209 jobs, 3,848 lines, 418 history entries. It took about 0.5 s.
-
-Things the importer skipped:
-- 1 crew rate that appears twice for the same crew and position.
-- The customer link on 2 jobs whose customer ID isn't in the customer list. The jobs keep the customer's name.
+**M2 import of the 23 Oct export:** 3,275 products, 192 kit parts, 1,249 customers (1,247 from the old list plus 2 flagged new; 1,047 with tax IDs), 784 crew, 2,582 crew rates (2 marked for review), 106 positions, 209 jobs (all linked to a customer), 3,848 lines, 418 history entries. It took about 0.5 s and skipped nothing.
 
 **How M2 runs locally:** Postgres 17.10 from the `embedded-postgres` npm package. There's no Homebrew or Docker on this Mac. It listens on 127.0.0.1 only, with a generated password kept in git-ignored `.env.local`.
 
@@ -293,10 +289,22 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
 12. Budget ceiling for hosting per month?
 13. Where is `lighthouse-dispatch-handoff.zip`? If it exists, its tests should be merged with these.
 
-### Found during M2
-14. **Customer tax IDs are personal data for individuals.** A Thai individual's tax ID is their national ID number. 1,047 customers have one. M2 stores them in a separate table readable only by admin, sale and accounting. Is that the right group? Should Store ever see them?
-15. **Crew cost (what we pay crew)** is now readable only by admin and the crew manager. Sales sees the price we charge, not the cost. Correct?
-16. **The old system calls the second stock field `oneHand`** (the brief wrote `onHand`). Both `stock` and `oneHand` are imported. Flaw 6 (Store count) still decides which one means "units owned".
-17. **One crew member has the same position listed twice** with possibly different rates. The importer keeps the first. Should someone check that crew record in the old system?
-18. **Two jobs point to customer IDs missing from the customer list.** Were those customers deleted in the old system?
-19. **Staff accounts:** artifact user IDs don't carry over to Supabase sign-in. When the Supabase project exists, who gets which role (admin / sale / store / accounting / crew)?
+### Found during M2 (Gene answered 23 Oct 2026)
+| # | Question | Gene's answer | Done |
+| --- | --- | --- | --- |
+| 14 | Who may see customer tax IDs? (An individual's is their national ID.) | Admin, sale, accounting, for document workflow | Kept as built. Purpose noted on the table |
+| 15 | Should sales see crew cost? | No. Sales sees the price we charge | Kept as built |
+| 16 | `stock` vs `oneHand` | Asked what this means. Explained below | Still open: Store count |
+| 17 | Crew member with the same position listed twice | Keep both: one crew member can do more than one position | Migration 2: every rate row kept (`rate_no`), repeats marked `needs_review`. All 2,582 rows imported |
+| 18 | Jobs pointing at missing customers | Add them and flag as new customer | Importer creates them from the job's details with `flagged_new`. It never re-flags or overwrites once a person has checked them |
+| 19 | Staff roles on Supabase | Later | Open |
+
+**About Q17:** most crew already have several positions (2,581 rates across 784 crew), and that always worked. The flagged case is different. One crew member has *the same* position (L6 Asst. Head Electrician, Lighting) listed twice: one row at ฿1 for price, OT and cost, the other at ฿45. Both are kept and marked for review. **Q20:** which rate is real? The ฿1 row looks like a test entry in the old system.
+
+**About Q18:** the two customers are IDs 1267 and 1268, used by jobs 6902227 and 6902237. They come right after the last customer in the copied list, so they are probably new customers added after the customer list was copied, not deleted ones. The next customer sync will bring their real details. The real record then replaces the placeholder and clears the flag.
+
+**About Q16, `stock` vs `oneHand`:** the old system keeps two counts per item. Across the 1,438 stocked items:
+- 1,206 have both counts equal.
+- 232 differ. In every one of them `oneHand` is lower, and often negative (Bazooka Set: stock 20, oneHand −17; Aputure 600X: stock 10, oneHand −18).
+
+A count of units owned can't be negative. So `stock` very likely means "units we own" (v2 already uses it for clash checks), and `oneHand` means "available now". It probably drifts negative because staff skip Returned, so the old system never sees the gear come back. This is an inference from the numbers, not confirmed. **Ask Store to count 10–20 of these items**, including a few where the two counts differ, and compare with `stock`.
