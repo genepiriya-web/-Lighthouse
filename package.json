@@ -20,7 +20,8 @@
     "test:orders": "node --test --test-concurrency=1 tests/orders-api.test.js",
     "test:e2e": "node e2e/db.js setup && playwright test; s=$?; node e2e/db.js teardown; exit $s",
     "test:master": "node --test --test-concurrency=1 tests/master-api.test.js",
-    "test:slice4": "node --test --test-concurrency=1 tests/slice4-api.test.js"
+    "test:slice4": "node --test --test-concurrency=1 tests/slice4-api.test.js",
+    "test:crewids": "node --test --test-concurrency=1 tests/crewids-api.test.js"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",
