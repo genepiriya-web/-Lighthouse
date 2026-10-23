@@ -10,7 +10,7 @@ export interface Line {
   k?: string; t: ItemType | number; pid?: number | null; code?: string; desc?: string;
   list?: number; qty?: number; days?: number; disc?: number; foc?: boolean; sb?: boolean;
   ot?: number; otRate?: number; ratio?: number; parent?: string | null | boolean;
-  start?: string; end?: string; out?: number; in?: number; dmg?: number; lost?: number;
+  start?: string; end?: string; out?: number; in?: number; dmg?: number; lost?: number; repaired?: boolean;
   crewId?: string; remark?: string; legacyAmount?: number;
 }
 export interface OrderMoney { extraDisc?: number; insurance?: number; adjust?: number; tax?: "Vat" | "Not Vat" | string; }

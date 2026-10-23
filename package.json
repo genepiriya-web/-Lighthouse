@@ -16,10 +16,12 @@
     "db:stop": "node scripts/db.js stop",
     "db:migrate": "node scripts/migrate.js",
     "db:import": "node scripts/import.js",
-    "test:db": "node --test --test-concurrency=1 tests/db.test.js"
+    "test:db": "node --test --test-concurrency=1 tests/db.test.js",
+    "test:orders": "node --test --test-concurrency=1 tests/orders-api.test.js"
   },
   "devDependencies": {
     "@types/node": "24.19.1",
+    "@types/pg": "8.23.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "embedded-postgres": "17.10.0-beta.17",
@@ -30,7 +32,8 @@
     "next": "16.3.8",
     "pg": "8.23.1",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "server-only": "0.0.1"
   },
   "allowScripts": {
     "@embedded-postgres/darwin-x64@17.10.0-beta.17": true
