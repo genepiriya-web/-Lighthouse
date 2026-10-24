@@ -39,14 +39,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 export function Shell({ children, wide = true }: { children: React.ReactNode; wide?: boolean }) {
   const { t, lang, setLang, me, meState } = useApp(); const router = useRouter(); const path = usePathname();
   const sb = supabase(); const signInPath = sb ? "/signin" : "/dev-login";
-  const signOut = async () => { document.cookie = "lhd_dev_user=; path=/; max-age=0"; if (sb) await sb.auth.signOut(); document.cookie = "lhd_at=; path=/; max-age=0"; router.push(signInPath); };
+  const signOut = async () => { document.cookie = "lhd_dev_user=; path=/; max-age=0"; if (me?.trial) await api("DELETE", "/api/dev/pin");
+    if (sb) await sb.auth.signOut(); document.cookie = "lhd_at=; path=/; max-age=0"; router.push(signInPath); };
   return (
     <>
       <header className="bar">
         <div className="bar-in pad">
           <Link href="/jobs" className="brand" style={{ textDecoration: "none" }}><span className="mark" aria-hidden="true" /><span className="brand-name">LIGHTHOUSE</span><span className="brand-sub">Dispatch</span></Link>
           <div className="bar-right">
-            {me && <span className="tape" style={{ ["--tc" as string]: "var(--sunk)", ["--tf" as string]: "var(--ink)" }} title={me.name}>{t("r_" + me.role)}</span>}
+            {me && <span className="tape" style={{ ["--tc" as string]: "var(--sunk)", ["--tf" as string]: "var(--ink)" }} title={me.name}>{me.trial ? me.name.replace(/^ทดลอง · /, "") : t("r_" + me.role)}</span>}
             <button className="btn sm ghost" type="button" onClick={() => setLang(lang === "th" ? "en" : "th")}>{lang === "th" ? "EN" : "ไทย"}</button>
             {me && <button className="btn sm ghost" type="button" onClick={signOut}>{t("signOut")}</button>}
           </div>

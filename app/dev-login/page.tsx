@@ -11,7 +11,9 @@ export default function DevLogin() {
   const [needPin, setNeedPin] = useState(false); const [pin, setPin] = useState(""); const [pinErr, setPinErr] = useState("");
   const load = () => api("GET", "/api/dev/staff").then(r => { if (r.ok) { setStaff(r.body.staff); setNeedPin(false); } else if (r.body?.error === "pin_required") setNeedPin(true); else setOff(true); });
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const sendPin = async (e: React.FormEvent) => { e.preventDefault(); setPinErr(""); const r = await api("POST", "/api/dev/pin", { pin }); if (r.ok) load(); else setPinErr(t(r.body?.error ?? "error")); };
+  // Staff trial: the PIN is the sign-in (it names the department), so go straight in.
+  const sendPin = async (e: React.FormEvent) => { e.preventDefault(); setPinErr(""); const r = await api("POST", "/api/dev/pin", { pin });
+    if (r.ok) { router.push("/jobs"); router.refresh(); } else setPinErr(t(r.body?.error ?? "error")); };
   const pick = (id: string) => { document.cookie = `lhd_dev_user=${encodeURIComponent(id)}; path=/; samesite=lax`; router.push("/jobs"); router.refresh(); };
   return (
     <main className="wrap pad" style={{ maxWidth: 520 }}>
@@ -24,8 +26,8 @@ export default function DevLogin() {
         <div className="list">{staff.map(s => (
           <button key={s.id} type="button" className="person btn ghost" style={{ width: "100%", justifyContent: "space-between", borderRadius: 0, padding: "12px 14px" }} onClick={() => pick(s.id)}>
             <span className="nm">{s.name}</span><span className="tape" style={{ ["--tc" as string]: "var(--sunk)", ["--tf" as string]: "var(--ink)" }}>{t("r_" + s.role)}</span></button>))}</div>}
-      {staff && <section className="sec"><h3>{t("tryTitle")}</h3><ul style={{ margin: 0, paddingLeft: 18 }}>{["sale", "store", "accounting", "admin", "crew"].map(r =>
-        <li key={r} style={{ marginBottom: 6 }}><b>{t("r_" + r)}</b> · {t("try_" + r)}</li>)}</ul><p className="small warn" style={{ margin: 0 }}>{t("privacyNote")}</p></section>}
+      {(staff || needPin) && <section className="sec"><h3>{t("tryTitle")}</h3><ul style={{ margin: 0, paddingLeft: 18 }}>{(needPin ? ["sale", "store", "support", "accounting", "admin"] : ["sale", "store", "accounting", "admin", "crew"]).map(r =>
+        <li key={r} style={{ marginBottom: 6 }}><b>{t(r === "support" ? "dept_support" : "r_" + r)}</b> · {t("try_" + r)}</li>)}</ul><p className="small warn" style={{ margin: 0 }}>{t("privacyNote")}</p></section>}
     </main>
   );
 }
