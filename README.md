@@ -76,7 +76,7 @@ LHD_AUTH=dev npm start             # then open http://localhost:3000/dev-login
 ```bash
 npm run trial    # local database + app for phones on the same Wi-Fi, PIN-locked, trial banner, Feedback button
 ```
-Prints the address and the PIN (kept in git-ignored `.trial-pin`). Guide for the meeting: `docs/TRIAL-TH.md`.
+Prints the address and one PIN per department — Sales, Store, Support, Accounting, System admin — kept in git-ignored `.trial-pins.json`; the PIN decides which department you are. Guide for the meeting: `docs/TRIAL-TH.md`.
 
 ### Real sign-in (Supabase)
 Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and leave `LHD_AUTH` unset; staff sign in at `/signin`. The first admin is invited with `node scripts/invite.js <email> admin`. Full checklist: `docs/GO-LIVE.md`.
