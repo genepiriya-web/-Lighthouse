@@ -254,3 +254,21 @@ export async function deleteInvite(c: PoolClient, who: Caller, email: string) {
   await log(c, who, "staff", email.toLowerCase(), "invite_removed", {});
   return { email };
 }
+
+// ---------- trial feedback ----------
+export async function sendFeedback(c: PoolClient, who: Caller, b: Record<string, unknown>) {
+  const body = String(b.text ?? "").trim(); if (!body) throw bad("required", "text"); if (body.length > 4000) throw bad("too_long");
+  const page = String(b.page ?? "").slice(0, 200) || null;
+  const r = await c.query("insert into feedback (user_id, user_name, role, page, text) values ($1,$2,$3,$4,$5) returning id", [who.id, who.name, who.role, page, body]);
+  return { id: r.rows[0].id };
+}
+export async function listFeedback(c: PoolClient, who: Caller) {
+  need(who, "admin");
+  return (await c.query(`select id, at, user_name as "userName", role, page, text, status from feedback order by (status = 'new') desc, at desc limit 500`)).rows;
+}
+export async function markFeedback(c: PoolClient, who: Caller, id: number, b: Record<string, unknown>) {
+  need(who, "admin");
+  const st = String(b.status ?? ""); if (!["new", "seen", "done"].includes(st)) throw bad("bad_status");
+  const r = await c.query("update feedback set status = $2 where id = $1", [id, st]); if (!r.rowCount) throw new ApiError(404, "not_found");
+  return { id };
+}

@@ -14,7 +14,7 @@ require("./env"); const {migrate}=require("./migrate");
 
 // Load order respects foreign keys. Every public table must be listed: create() refuses to run if one is missing.
 const TABLES=["staff","positions","products","kit_parts","customers","customer_tax_ids","crew","crew_rates","crew_rate_costs","settings",
-  "order_counters","orders","order_lines","repairs","activity","import_runs","crew_national_ids","crew_id_links","staff_invites"];
+  "order_counters","orders","order_lines","repairs","activity","import_runs","crew_national_ids","crew_id_links","staff_invites","feedback"];
 const MAGIC="LHDBK1";
 
 function backupKey(){ const k=Buffer.from(process.env.BACKUP_KEY??"","base64"); if(k.length!==32) throw new Error("BACKUP_KEY must be 32 bytes, base64 (separate from CREW_ID_KEY)"); return k; }
@@ -72,7 +72,7 @@ async function restore(file,url){
     await t.query("set local app.importer = 'on'"); // legacy jobs may be written back by their owner, as by the importer
     for(const name of TABLES){ const rows=B.tables[name]||[];
       for(let i=0;i<rows.length;i+=2000) await t.query(`insert into ${name} overriding system value select * from jsonb_populate_recordset(null::${name}, $1::jsonb)`,[JSON.stringify(rows.slice(i,i+2000))]); }
-    for(const [tab,col] of [["activity","id"],["import_runs","id"]])
+    for(const [tab,col] of [["activity","id"],["import_runs","id"],["feedback","id"]])
       await t.query(`select setval(pg_get_serial_sequence('${tab}','${col}'), greatest((select coalesce(max(${col}),0) from ${tab}),1), (select count(*)>0 from ${tab}))`);
     const s=B.sequences.product_v2_id; await t.query("select setval('product_v2_id',$1,$2)",[s.last_value,s.is_called]);
     await t.query("commit");

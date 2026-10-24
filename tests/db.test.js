@@ -14,7 +14,7 @@ const urlFor=db=>{ const u=new URL(ADMIN); u.pathname="/"+db; return u.toString(
 const ROLES=["admin","sale","store","accounting","crew"]; const uid={}; for(const r of ROLES) uid[r]=crypto.randomUUID();
 const NOT_STAFF=crypto.randomUUID(), INACTIVE=crypto.randomUUID();
 const ALL_TABLES=["staff","positions","products","kit_parts","customers","customer_tax_ids","crew","crew_rates","crew_rate_costs",
-  "settings","orders","order_lines","repairs","order_counters","activity","import_runs","crew_national_ids","crew_id_links","staff_invites"];
+  "settings","orders","order_lines","repairs","order_counters","activity","import_runs","crew_national_ids","crew_id_links","staff_invites","feedback"];
 
 const {writeFixture}=require("./helpers/fixture");
 
