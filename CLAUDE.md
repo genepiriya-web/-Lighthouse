@@ -36,6 +36,7 @@ Gene (MD) decides. Give pros and cons for every proposal. Never guess facts: wri
 - Crew national IDs (`lib/server/crewids.ts`): only through the server, admin only, encrypted with `CREW_ID_KEY`. Never return a full ID except from `reveal` or an opened client link, and log both. Never put an ID in activity, responses, fixtures, seeds or logs; tests use `syntheticId()`. Client-link GETs must not reveal anything (chat previews fetch them).
 - Routes in `app/api/**` stay thin: parse, `requireStaff`, call the service.
 - Sign-in (`lib/server/auth.ts`): Supabase access tokens, verified per Supabase's docs (key list for RS256/ES256, `/auth/v1/user` for HS256). The `lhd_at` cookie counts for GET/HEAD only; changes need `Authorization: Bearer` (no CSRF). New people join through `staff_invites` on first verified-email sign-in. `LHD_AUTH=dev` (header `x-dev-user`) is for local dev/tests only and refuses a non-local database.
+- Staff trial (`npm run trial`): dev sign-in behind `LHD_TRIAL_PIN` (from git-ignored `.trial-pin`, read only by `scripts/trial.js`). Test servers must pass `LHD_TRIAL_PIN: ""` so a PIN on this machine never locks them. Feedback rows are server-only.
 - Backups (`scripts/backup.js`): every public table must be in `TABLES` (create() refuses otherwise). Never commit backups; `data/` is git-ignored. Production go-live steps live in `docs/GO-LIVE.md` and are Gene's to run (secrets).
 
 ## Commands
@@ -46,6 +47,7 @@ Gene (MD) decides. Give pros and cons for every proposal. Never guess facts: wri
 - `npm run test:slice4` — cockpit and documents API
 - `npm run test:crewids` — crew national IDs
 - `npm run test:backup` · `npm run test:auth`
+- `npm run test:trial` — trial PIN lock and feedback
 - `npm run test:e2e` — Playwright at 390 × 844 on a throwaway database (`e2e/db.js`)
 - `npm run test:orders` — starts the built app on a throwaway database and drives the order API as each role (needs `npm run build` + local Postgres)
 - Parity is skipped until `data/parity.json` exists. Build it with `node scripts/make-parity.js <artifact-db-export-dir>`.

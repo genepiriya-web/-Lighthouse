@@ -26,6 +26,7 @@ npm run test:crewids # crew national IDs: admin-only, encrypted, logged, client 
 npm run test:backup # encrypted backup → restore → every table identical
 npm run test:auth  # Supabase token checks, invites, CSRF (fake Supabase)
 npm run backup && npm run backup:verify -- data/backups/<file>.lhdbk   # back up, then prove it restores
+npm run test:trial # trial PIN lock and feedback
 npm run test:e2e   # Playwright at 390 px: a job's life as sale → store → CEO → store (after npm run build)
 ```
 
@@ -70,6 +71,12 @@ npm run build
 LHD_AUTH=dev npm start             # then open http://localhost:3000/dev-login
 ```
 `/dev-login` picks a test staff member (works only against a local database). API callers can send `x-dev-user: <staff user id>` instead.
+
+### Staff trial on the office Wi-Fi
+```bash
+npm run trial    # local database + app for phones on the same Wi-Fi, PIN-locked, trial banner, Feedback button
+```
+Prints the address and the PIN (kept in git-ignored `.trial-pin`). Guide for the meeting: `docs/TRIAL-TH.md`.
 
 ### Real sign-in (Supabase)
 Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and leave `LHD_AUTH` unset; staff sign in at `/signin`. The first admin is invited with `node scripts/invite.js <email> admin`. Full checklist: `docs/GO-LIVE.md`.
