@@ -13,6 +13,6 @@ export default defineConfig({
     command: "npx next start -p 3921 -H 127.0.0.1",
     url: "http://127.0.0.1:3921/dev-login",
     reuseExistingServer: false,
-    env: { DATABASE_URL: url(), LHD_AUTH: "dev", LHD_TRIAL_PIN: "", NEXT_TELEMETRY_DISABLED: "1" },
+    env: { DATABASE_URL: url(), LHD_AUTH: "dev", LHD_TRIAL_PINS: "", NEXT_TELEMETRY_DISABLED: "1" },
   },
 });

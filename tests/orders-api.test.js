@@ -28,7 +28,7 @@ test.before(async()=>{ if(skip) return;
     [[...ROLES.map(r=>uid[r]),INACTIVE],[...ROLES.map(r=>"Test "+r),"Gone"],[...ROLES,"sale"],[...ROLES.map(()=>true),false]]);
   await c.end();
   srv=spawn(process.execPath,[require.resolve("next/dist/bin/next"),"start","-p",String(PORT),"-H","127.0.0.1"],
-    {cwd:root,stdio:["ignore","ignore","pipe"],env:{...process.env,DATABASE_URL:urlFor(dbName),LHD_AUTH:"dev",LHD_TRIAL_PIN:"",NEXT_TELEMETRY_DISABLED:"1"}});
+    {cwd:root,stdio:["ignore","ignore","pipe"],env:{...process.env,DATABASE_URL:urlFor(dbName),LHD_AUTH:"dev",LHD_TRIAL_PINS:"",NEXT_TELEMETRY_DISABLED:"1"}});
   srv.stderr.on("data",d=>{ if(process.env.DEBUG_API) process.stderr.write(d); });
   for(let i=0;i<100;i++){ try{ await fetch(base+"/api/me"); return; }catch{} await new Promise(r=>setTimeout(r,150)); }
   throw new Error("next start did not come up");

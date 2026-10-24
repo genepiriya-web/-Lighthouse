@@ -11,8 +11,8 @@
 //   creates the staff row with the invited role.
 // LHD_AUTH=dev — local development and tests only: `x-dev-user` header or `lhd_dev_user` cookie. Refused unless
 //   DATABASE_URL is on this machine.
-// LHD_TRIAL_PIN — staff trial on the office Wi-Fi (dev sign-in, real data copy). Nobody gets in, by header or cookie,
-//   without first entering the PIN (POST /api/dev/pin → httpOnly `lhd_trial` cookie). Wrong PINs: 10 per 10 min per address.
+// LHD_TRIAL_PINS — staff trial on the office Wi-Fi (real data copy): one PIN per department; the PIN (POST /api/dev/pin →
+//   signed httpOnly `lhd_trial` cookie) is the only way in. Wrong PINs: 10 per 10 min per address.
 import "server-only";
 import crypto from "node:crypto";
 import type { PoolClient } from "pg";
@@ -27,24 +27,39 @@ interface Identity { id: string; email: string | null; emailVerified: boolean; }
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// ---------- staff trial PIN ----------
-export const trialPin = () => (process.env.LHD_TRIAL_PIN ?? "").trim();
-const trialToken = (pin: string) => crypto.createHash("sha256").update(`lhd-trial:${pin}:${process.env.CREW_ID_KEY ?? ""}`).digest("base64url");
-export const trialCookie = () => `lhd_trial=${trialToken(trialPin())}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${12 * 3600}`;
-export function trialPassed(req: Request): boolean {
-  const pin = trialPin(); if (!pin) return true;
-  const got = Buffer.from(cookie(req, "lhd_trial") ?? ""), want = Buffer.from(trialToken(pin));
-  return got.length === want.length && crypto.timingSafeEqual(got, want);
+// ---------- staff trial: one PIN per department ----------
+// LHD_TRIAL_PINS = {"sale":"123456","store":…,"support":…,"accounting":…,"admin":…}. The PIN alone decides who you are: each
+// department signs in as its own trial account, so a Sales PIN can never act as Store or admin. While the trial runs, user
+// ids sent in headers or cookies are ignored. Support has Sales rights for now (its own role isn't defined yet).
+export const TRIAL_ACCOUNTS: Record<string, string> = {
+  admin: "00000000-0000-4000-8000-000000000001", sale: "00000000-0000-4000-8000-000000000002", store: "00000000-0000-4000-8000-000000000003",
+  accounting: "00000000-0000-4000-8000-000000000004", support: "00000000-0000-4000-8000-000000000006",
+};
+export function trialPins(): Record<string, string> {
+  try { const j = JSON.parse(process.env.LHD_TRIAL_PINS || "{}") as Record<string, unknown>;
+    return Object.fromEntries(Object.entries(j).filter(([k, v]) => k in TRIAL_ACCOUNTS && /^\d{4,8}$/.test(String(v))).map(([k, v]) => [k, String(v)])); }
+  catch { return {}; }
+}
+export const trialOn = () => Object.keys(trialPins()).length > 0;
+const trialSig = (dept: string, pin: string) => crypto.createHmac("sha256", `lhd-trial:${process.env.CREW_ID_KEY ?? ""}`).update(`${dept}:${pin}`).digest("base64url");
+export const trialCookie = (dept: string) => `lhd_trial=${dept}.${trialSig(dept, trialPins()[dept])}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${12 * 3600}`;
+export const clearTrialCookie = "lhd_trial=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
+/** The department whose valid trial cookie this request carries, or null. */
+export function trialDept(req: Request): string | null {
+  const v = cookie(req, "lhd_trial"); if (!v) return null; const i = v.indexOf("."); if (i < 1) return null;
+  const dept = v.slice(0, i), pins = trialPins(); if (!pins[dept]) return null;
+  const got = Buffer.from(v.slice(i + 1)), want = Buffer.from(trialSig(dept, pins[dept]));
+  return got.length === want.length && crypto.timingSafeEqual(got, want) ? dept : null;
 }
 const tries = (globalThis as unknown as { __lhdPinTries?: Map<string, number[]> });
-/** True if the PIN is right; counts wrong guesses per client address and blocks after 10 in 10 minutes. */
-export function checkPin(req: Request, pin: string): boolean {
+/** The department the PIN belongs to, or null. Wrong guesses are counted per client address: 10 in 10 minutes blocks. */
+export function checkPin(req: Request, pin: string): string | null {
   const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "local";
   const m = (tries.__lhdPinTries ??= new Map()); const now = Date.now(); const recent = (m.get(ip) ?? []).filter((t: number) => now - t < 600_000);
   if (recent.length >= 10) throw new ApiError(429, "too_many_tries", "Too many wrong PINs. Wait 10 minutes.");
-  const a = Buffer.from(pin.trim()), b = Buffer.from(trialPin());
-  if (a.length === b.length && crypto.timingSafeEqual(a, b)) { m.delete(ip); return true; }
-  recent.push(now); m.set(ip, recent); return false;
+  const a = Buffer.from(pin.trim());
+  for (const [dept, p] of Object.entries(trialPins())) { const b = Buffer.from(p); if (a.length === b.length && crypto.timingSafeEqual(a, b)) { m.delete(ip); return dept; } }
+  recent.push(now); m.set(ip, recent); return null;
 }
 
 export function devAuthOn(): boolean {
@@ -97,7 +112,7 @@ async function verifySupabase(token: string): Promise<Identity | null> {
 
 async function identify(req: Request): Promise<Identity | null> {
   if (devAuthOn()) {
-    if (!trialPassed(req)) throw new ApiError(401, "pin_required");
+    if (trialOn()) { const dept = trialDept(req); if (!dept) throw new ApiError(401, "pin_required"); return { id: TRIAL_ACCOUNTS[dept], email: null, emailVerified: false }; }
     const id = req.headers.get("x-dev-user") ?? cookie(req, "lhd_dev_user");
     return id && UUID.test(id) ? { id, email: null, emailVerified: false } : null;
   }

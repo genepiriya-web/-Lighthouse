@@ -17,7 +17,7 @@ async function startTestServer(port,{env={}}={}){
   const uid={}; for(const r of ROLES) uid[r]=crypto.randomUUID();
   for(const r of ROLES) await db.query("insert into staff(user_id,display_name,role) values ($1,$2,$3)",[uid[r],"Test "+r,r]);
   const srv=spawn(process.execPath,[require.resolve("next/dist/bin/next"),"start","-p",String(port),"-H","127.0.0.1"],
-    {cwd:root,stdio:["ignore","ignore",process.env.DEBUG_API?"inherit":"ignore"],env:{...process.env,DATABASE_URL:url,LHD_AUTH:"dev",LHD_TRIAL_PIN:"",NEXT_TELEMETRY_DISABLED:"1",...env}});
+    {cwd:root,stdio:["ignore","ignore",process.env.DEBUG_API?"inherit":"ignore"],env:{...process.env,DATABASE_URL:url,LHD_AUTH:"dev",LHD_TRIAL_PINS:"",NEXT_TELEMETRY_DISABLED:"1",...env}});
   const base=`http://127.0.0.1:${port}`;
   for(let i=0;;i++){ try{ await fetch(base+"/api/totals",{method:"POST",body:"{}"}); break; }catch{ if(i>100) throw new Error("next start did not come up"); await new Promise(r=>setTimeout(r,150)); } }
   async function api(who,method,p,body){
