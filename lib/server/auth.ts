@@ -11,6 +11,8 @@
 //   creates the staff row with the invited role.
 // LHD_AUTH=dev — local development and tests only: `x-dev-user` header or `lhd_dev_user` cookie. Refused unless
 //   DATABASE_URL is on this machine.
+// LHD_TRIAL_PIN — staff trial on the office Wi-Fi (dev sign-in, real data copy). Nobody gets in, by header or cookie,
+//   without first entering the PIN (POST /api/dev/pin → httpOnly `lhd_trial` cookie). Wrong PINs: 10 per 10 min per address.
 import "server-only";
 import crypto from "node:crypto";
 import type { PoolClient } from "pg";
@@ -24,6 +26,26 @@ interface Identity { id: string; email: string | null; emailVerified: boolean; }
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// ---------- staff trial PIN ----------
+export const trialPin = () => (process.env.LHD_TRIAL_PIN ?? "").trim();
+const trialToken = (pin: string) => crypto.createHash("sha256").update(`lhd-trial:${pin}:${process.env.CREW_ID_KEY ?? ""}`).digest("base64url");
+export const trialCookie = () => `lhd_trial=${trialToken(trialPin())}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${12 * 3600}`;
+export function trialPassed(req: Request): boolean {
+  const pin = trialPin(); if (!pin) return true;
+  const got = Buffer.from(cookie(req, "lhd_trial") ?? ""), want = Buffer.from(trialToken(pin));
+  return got.length === want.length && crypto.timingSafeEqual(got, want);
+}
+const tries = (globalThis as unknown as { __lhdPinTries?: Map<string, number[]> });
+/** True if the PIN is right; counts wrong guesses per client address and blocks after 10 in 10 minutes. */
+export function checkPin(req: Request, pin: string): boolean {
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "local";
+  const m = (tries.__lhdPinTries ??= new Map()); const now = Date.now(); const recent = (m.get(ip) ?? []).filter((t: number) => now - t < 600_000);
+  if (recent.length >= 10) throw new ApiError(429, "too_many_tries", "Too many wrong PINs. Wait 10 minutes.");
+  const a = Buffer.from(pin.trim()), b = Buffer.from(trialPin());
+  if (a.length === b.length && crypto.timingSafeEqual(a, b)) { m.delete(ip); return true; }
+  recent.push(now); m.set(ip, recent); return false;
+}
 
 export function devAuthOn(): boolean {
   if (process.env.LHD_AUTH !== "dev") return false;
@@ -75,6 +97,7 @@ async function verifySupabase(token: string): Promise<Identity | null> {
 
 async function identify(req: Request): Promise<Identity | null> {
   if (devAuthOn()) {
+    if (!trialPassed(req)) throw new ApiError(401, "pin_required");
     const id = req.headers.get("x-dev-user") ?? cookie(req, "lhd_dev_user");
     return id && UUID.test(id) ? { id, email: null, emailVerified: false } : null;
   }
