@@ -7,7 +7,7 @@ import { translate, type Lang } from "../../lib/i18n";
 import type { Role } from "../../lib/logic";
 import { accessToken, supabase } from "../../lib/supabase-browser";
 
-export interface Me { id: string; name: string; role: Exclude<Role, "none">; }
+export interface Me { id: string; name: string; role: Exclude<Role, "none">; trial?: boolean; }
 export interface ApiResult<T = any> { ok: boolean; status: number; body: T; }
 
 export async function api<T = any>(method: string, path: string, body?: unknown): Promise<ApiResult<T>> {
@@ -52,9 +52,10 @@ export function Shell({ children, wide = true }: { children: React.ReactNode; wi
           </div>
         </div>
         <nav className="tabs pad" role="tablist">{[...(me?.role === "admin" ? [["/cockpit", "cockpit"]] : []), ["/jobs", "jobs"], ["/store", "store"], ["/catalog", "catalog"], ["/customers", "customers"], ["/crew", "crew"], ["/repairs", "repair"],
-          ...(me?.role === "admin" ? [["/team", "team"], ["/settings", "settings"]] : [])].map(([href, k]) =>
+          ...(me?.role === "admin" ? [["/team", "team"], ["/settings", "settings"], ...(me.trial ? [["/feedback", "feedback"]] : [])] : [])].map(([href, k]) =>
           <Link key={href} className="tab" role="tab" aria-selected={path.startsWith(href)} href={href}>{t(k)}</Link>)}</nav>
       </header>
+      {me?.trial && <div className="pad" style={{ background: "var(--accent)", color: "var(--accent-ink)", fontWeight: 600, fontSize: 13, padding: "6px 16px", textAlign: "center" }}>{t("trialBanner")}</div>}
       <main className="wrap pad" style={wide ? undefined : { maxWidth: 900 }}>
         {meState === "signed_out" ? <div className="empty"><p>{t("signedOut")}</p><Link className="btn primary" href={signInPath}>{t(sb ? "signIn" : "signInAs")}</Link></div>
           : meState === "not_staff" ? <div className="banner bad">{t("notStaff")}</div>
@@ -62,6 +63,7 @@ export function Shell({ children, wide = true }: { children: React.ReactNode; wi
           : meState === "loading" ? <div className="empty"><p>{t("loading")}</p></div>
           : children}
       </main>
+      {me && <Feedback />}
     </>
   );
 }
@@ -69,3 +71,18 @@ export function Shell({ children, wide = true }: { children: React.ReactNode; wi
 export const stCls = (s: string) => "tape st-" + String(s || "").split(" ")[0];
 export const money = (n: number) => (+n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const fmtD = (s?: string | null) => { if (!s) return ""; const [y, m, d] = s.slice(0, 10).split("-"); return `${d}/${m}/${y}`; };
+
+/** Floating "Feedback" button on every screen: sends a note with the page it came from. */
+function Feedback() {
+  const { t } = useApp(); const path = usePathname(); const [open, setOpen] = useState(false); const [text, setText] = useState(""); const [msg, setMsg] = useState(""); const [busy, setBusy] = useState(false);
+  const send = async (e: React.FormEvent) => { e.preventDefault(); setBusy(true); const r = await api("POST", "/api/feedback", { page: path, text }); setBusy(false);
+    if (r.ok) { setText(""); setMsg(t("thanks")); setTimeout(() => { setOpen(false); setMsg(""); }, 1500); } else setMsg(t(r.body?.error ?? "error")); };
+  return <>
+    <button type="button" className="btn primary" style={{ position: "fixed", right: 16, bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", zIndex: 35, boxShadow: "0 4px 14px rgba(0,0,0,.18)" }} onClick={() => setOpen(true)}>{t("feedback")}</button>
+    {open && <div style={{ position: "fixed", inset: 0, zIndex: 50 }}><div className="scrim" style={{ position: "absolute", inset: 0 }} onClick={() => setOpen(false)} />
+      <form className="sec" onSubmit={send} style={{ position: "absolute", left: 16, right: 16, bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", maxWidth: 520, margin: "0 auto" }}>
+        <h3>{t("feedback")}<small>{path}</small></h3><textarea className="inp" required autoFocus placeholder={t("feedbackHelp")} value={text} onChange={e => setText(e.target.value)} maxLength={4000} />
+        <div className="row"><button className="btn primary" type="submit" disabled={busy || !text.trim()}>{t("send")}</button><button className="btn" type="button" onClick={() => setOpen(false)}>{t("close")}</button>{msg && <span className="small good">{msg}</span>}</div>
+      </form></div>}
+  </>;
+}

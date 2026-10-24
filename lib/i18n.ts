@@ -7,7 +7,7 @@ export type Lang = "th" | "en";
 
 const extra: Record<Lang, Record<string, string>> = {
   en: {
-    signInAs: "Sign in as (local test only)", signOut: "Sign out", devOnly: "Test sign-in. Real sign-in comes with Supabase.",
+    signInAs: "Choose a role to try", signOut: "Sign out", devOnly: "Trial: the data is a copy of the old system. Nothing you do here changes the old system.",
     needsCeo: "Special prices need the CEO before shipping", ceoApprove: "Confirm prices (CEO)", ceoApproved: "Prices confirmed by {n}",
     rPriceApproval: "The CEO must confirm the special prices first.", br_below_catalog: "below catalog {l}", br_no_discount: "item can't be discounted",
     br_over_max_disc: "over the {l}% limit", saveItems: "Save items", unsaved: "Unsaved changes", stale: "Someone saved this job after you opened it. Reload to see their changes.",
@@ -24,9 +24,17 @@ const extra: Record<Lang, Record<string, string>> = {
     signIn: "Sign in", signInHelp: "Use the email your admin invited. We'll send you a 6-digit code.", emailLbl: "Email", sendCode: "Send code", codeLbl: "6-digit code", codeSent: "Code sent to {e}. It can take a minute.",
     verifyCode: "Sign in", withGoogle: "Sign in with Google", orLbl: "or", authOff: "Sign-in isn't set up yet (Supabase keys missing).", invites: "Invites", invite: "Invite", inviteHelp: "They join with this role the first time they sign in with this email.",
     joined: "joined", pending: "waiting", nameOpt: "Name (optional)", withdraw: "Withdraw", roleLbl: "Role",
+    trialBanner: "TRIAL — the old system is still the real one. Jobs made here are not real jobs.", feedback: "Feedback", feedbackHelp: "What's confusing, missing or wrong on this screen? Please add your name.",
+    send: "Send", thanks: "Thank you — sent.", pinTitle: "Trial PIN", pinHelp: "Enter the PIN given in the meeting.", wrong_pin: "Wrong PIN.", too_many_tries: "Too many wrong PINs. Wait 10 minutes.",
+    tryTitle: "What to try", privacyNote: "Customer data here is real. Please don't screenshot or share it.", fb_new: "new", fb_seen: "seen", fb_done: "done", feedbackT: "Trial feedback", noFeedback: "No feedback yet.",
+    try_sale: "Create a job, add equipment and crew, try a price below catalog and see the CEO step, move it to Order and Approve, download the quotation.",
+    try_store: "Open Store to see what goes out and comes back, check items out and in on a trial job, mark something damaged and send it to repair.",
+    try_accounting: "Open a returned job, change insurance or extra discount, move it to Draft INV, download the Draft INV.",
+    try_admin: "Open the Cockpit, confirm special prices on a trial job, look at Team and the feedback list.",
+    try_crew: "Open Crew rates and check the positions and rates you know.",
   },
   th: {
-    signInAs: "เข้าใช้งานเป็น (ทดสอบในเครื่องเท่านั้น)", signOut: "ออกจากระบบ", devOnly: "การเข้าใช้งานสำหรับทดสอบ ระบบล็อกอินจริงจะมากับ Supabase",
+    signInAs: "เลือกบทบาทเพื่อทดลองใช้", signOut: "ออกจากระบบ", devOnly: "ทดลองใช้: ข้อมูลเป็นสำเนาจากระบบเดิม สิ่งที่ทำที่นี่ไม่เปลี่ยนอะไรในระบบเดิม",
     needsCeo: "ราคาพิเศษต้องให้ CEO ยืนยันก่อนส่งของ", ceoApprove: "ยืนยันราคา (CEO)", ceoApproved: "ยืนยันราคาแล้วโดย {n}",
     rPriceApproval: "ต้องให้ CEO ยืนยันราคาพิเศษก่อน", br_below_catalog: "ต่ำกว่าราคากลาง {l}", br_no_discount: "สินค้านี้ลดราคาไม่ได้",
     br_over_max_disc: "เกินส่วนลดสูงสุด {l}%", saveItems: "บันทึกรายการ", unsaved: "ยังไม่ได้บันทึก", stale: "มีคนบันทึกงานนี้หลังจากที่คุณเปิด กดโหลดใหม่เพื่อดูการเปลี่ยนแปลง",
@@ -43,6 +51,14 @@ const extra: Record<Lang, Record<string, string>> = {
     signIn: "เข้าสู่ระบบ", signInHelp: "ใช้อีเมลที่ผู้ดูแลเชิญ ระบบจะส่งรหัส 6 หลักให้", emailLbl: "อีเมล", sendCode: "ส่งรหัส", codeLbl: "รหัส 6 หลัก", codeSent: "ส่งรหัสไปที่ {e} แล้ว อาจใช้เวลาสักครู่",
     verifyCode: "เข้าสู่ระบบ", withGoogle: "เข้าสู่ระบบด้วย Google", orLbl: "หรือ", authOff: "ยังไม่ได้ตั้งค่าการเข้าสู่ระบบ (ไม่มีคีย์ Supabase)", invites: "คำเชิญ", invite: "เชิญ", inviteHelp: "จะได้บทบาทนี้เมื่อเข้าสู่ระบบด้วยอีเมลนี้ครั้งแรก",
     joined: "เข้าร่วมแล้ว", pending: "รอเข้าร่วม", nameOpt: "ชื่อ (ไม่บังคับ)", withdraw: "ยกเลิกคำเชิญ", roleLbl: "บทบาท",
+    trialBanner: "ทดลองใช้ — ระบบจริงยังเป็นระบบเดิม งานที่สร้างที่นี่ไม่ใช่งานจริง", feedback: "ความเห็น", feedbackHelp: "หน้านี้มีอะไรงง ขาด หรือผิดบ้าง (ใส่ชื่อคุณด้วย)",
+    send: "ส่ง", thanks: "ขอบคุณ ส่งแล้ว", pinTitle: "PIN ทดลองใช้", pinHelp: "ใส่ PIN ที่ได้รับในที่ประชุม", wrong_pin: "PIN ไม่ถูกต้อง", too_many_tries: "ใส่ PIN ผิดหลายครั้งเกินไป รอ 10 นาที",
+    tryTitle: "ลองอะไรได้บ้าง", privacyNote: "ข้อมูลลูกค้าในนี้เป็นข้อมูลจริง ห้ามถ่ายภาพหน้าจอหรือส่งต่อ", fb_new: "ใหม่", fb_seen: "อ่านแล้ว", fb_done: "จัดการแล้ว", feedbackT: "ความเห็นจากการทดลอง", noFeedback: "ยังไม่มีความเห็น",
+    try_sale: "สร้างงาน ใส่อุปกรณ์และช่าง ลองตั้งราคาต่ำกว่าราคากลางแล้วดูขั้นตอนให้ CEO ยืนยัน ย้ายเป็น Order และ Approve แล้วดาวน์โหลดใบเสนอราคา",
+    try_store: "เปิดหน้าสโตร์ดูของออกและของเข้า ลองเช็กเอาต์และเช็กอินงานทดลอง ระบุของเสียหายแล้วส่งซ่อม",
+    try_accounting: "เปิดงานที่คืนของแล้ว ลองแก้ค่าประกันหรือส่วนลดเพิ่ม ย้ายเป็น Draft INV แล้วดาวน์โหลด Draft INV",
+    try_admin: "เปิดห้องควบคุม ยืนยันราคาพิเศษของงานทดลอง ดูหน้าทีมและรายการความเห็น",
+    try_crew: "เปิดเรทช่าง ตรวจตำแหน่งและเรทที่คุณรู้จัก",
   },
 };
 

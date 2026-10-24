@@ -26,7 +26,7 @@ async function noSidewaysScroll(page: Page, where: string) {
 
 test("Thai by default; sign-in picker and jobs list fit the phone", async ({ page }) => {
   await page.goto("/dev-login");
-  await expect(page.getByRole("heading", { name: /เข้าใช้งานเป็น/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /เลือกบทบาทเพื่อทดลองใช้/ })).toBeVisible();
   await noSidewaysScroll(page, "dev-login");
   await page.getByRole("button", { name: /Dev Sale/ }).click();
   await expect(page.getByRole("heading", { name: "งาน" })).toBeVisible();

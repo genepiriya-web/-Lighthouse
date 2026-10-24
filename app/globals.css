@@ -162,3 +162,5 @@ details.sec>summary h3::after{content:"▾";font-size:14px;color:var(--muted)} d
 .jrow.prow{grid-template-columns:150px minmax(0,1fr) minmax(0,2.4fr)}
 @media (max-width:640px){ .jrow.prow{grid-template-columns:auto 1fr} .jrow.prow .t{grid-column:1/-1} }
 .seg{flex-wrap:wrap;max-width:100%}
+/* room for the floating Feedback button */
+.wrap{padding-bottom:96px}
