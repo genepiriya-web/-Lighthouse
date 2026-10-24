@@ -6,7 +6,8 @@
 const fs=require("fs"), path=require("path"); const {Client}=require("pg");
 require("./env");
 
-async function migrate(connectionString,{log=console.log}={}){
+// `only`: apply exactly these migrations (a restore must match the schema its backup was taken at).
+async function migrate(connectionString,{log=console.log,only}={}){
   const c=new Client({connectionString}); await c.connect();
   try{
     const hasAuth=(await c.query("select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='auth' and p.proname='uid'")).rowCount>0;
@@ -15,7 +16,7 @@ async function migrate(connectionString,{log=console.log}={}){
     const done=new Set((await c.query("select name from _migrations.applied")).rows.map(r=>r.name));
     const dir=path.join(__dirname,"../supabase/migrations");
     for(const f of fs.readdirSync(dir).filter(f=>f.endsWith(".sql")).sort()){
-      if(done.has(f)) continue;
+      if(done.has(f)||(only&&!only.includes(f))) continue;
       await c.query("begin");
       try{ await c.query(fs.readFileSync(path.join(dir,f),"utf8")); await c.query("insert into _migrations.applied(name) values ($1)",[f]); await c.query("commit"); log("applied "+f); }
       catch(e){ await c.query("rollback"); throw new Error(`${f}: ${e.message}`); }

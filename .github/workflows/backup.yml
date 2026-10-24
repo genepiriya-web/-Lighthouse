@@ -1,0 +1,29 @@
+# Nightly encrypted backup of the production database, kept 30 days as a GitHub artifact, and a weekly restore test
+# into a throwaway Postgres 17 that compares every table. Needs repository secrets (set by Gene, never in code or chat):
+#   DATABASE_URL  — production connection string      BACKUP_KEY — 32 bytes, base64 (keep a copy offline too)
+name: backup
+on:
+  schedule:
+    - cron: "15 19 * * *"   # 02:15 Bangkok, nightly backup
+    - cron: "45 19 * * 6"   # 02:45 Bangkok on Sundays: backup + restore test
+  workflow_dispatch: {}
+permissions: { contents: read }
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    services:
+      pg: { image: "postgres:17", env: { POSTGRES_PASSWORD: verify }, ports: ["5432:5432"], options: "--health-cmd pg_isready --health-interval 5s --health-retries 10" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "24", cache: npm }
+      - run: npm ci --ignore-scripts
+      - name: Create encrypted backup
+        env: { DATABASE_URL: "${{ secrets.DATABASE_URL }}", BACKUP_KEY: "${{ secrets.BACKUP_KEY }}" }
+        run: node scripts/backup.js create --out backups
+      - name: Restore test (Sundays, or when run by hand)
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '45 19 * * 6'
+        env: { BACKUP_KEY: "${{ secrets.BACKUP_KEY }}", DATABASE_ADMIN_URL: "postgres://postgres:verify@localhost:5432/postgres" }
+        run: node scripts/backup.js verify backups/*.lhdbk
+      - uses: actions/upload-artifact@v4
+        with: { name: "lighthouse-backup-${{ github.run_id }}", path: backups/*.lhdbk, retention-days: 30, if-no-files-found: error }

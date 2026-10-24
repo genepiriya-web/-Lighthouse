@@ -23,7 +23,8 @@ function init(){
   console.log("initialised .pgdata and wrote DATABASE_URL to .env.local");
 }
 // Local encryption key for crew national IDs (M5). Production sets its own CREW_ID_KEY; never reuse this one.
-function ensureKeys(){ if(!readEnv().CREW_ID_KEY){ writeEnv({CREW_ID_KEY:crypto.randomBytes(32).toString("base64")}); console.log("wrote a local CREW_ID_KEY to .env.local"); } }
+// Local backup key too (separate from CREW_ID_KEY, as in production).
+function ensureKeys(){ for(const k of ["CREW_ID_KEY","BACKUP_KEY"]) if(!readEnv()[k]){ writeEnv({[k]:crypto.randomBytes(32).toString("base64")}); console.log(`wrote a local ${k} to .env.local`); } }
 const status=()=>{ try{ execFileSync(bin("pg_ctl"),["-D",dataDir,"status"],{stdio:"ignore"}); return true; }catch{ return false; } };
 
 const cmd=process.argv[2];
