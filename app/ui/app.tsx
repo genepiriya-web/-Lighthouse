@@ -5,12 +5,15 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { translate, type Lang } from "../../lib/i18n";
 import type { Role } from "../../lib/logic";
+import { accessToken, supabase } from "../../lib/supabase-browser";
 
 export interface Me { id: string; name: string; role: Exclude<Role, "none">; }
 export interface ApiResult<T = any> { ok: boolean; status: number; body: T; }
 
 export async function api<T = any>(method: string, path: string, body?: unknown): Promise<ApiResult<T>> {
-  const r = await fetch(path, { method, headers: body === undefined ? undefined : { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const headers: Record<string, string> = {}; if (body !== undefined) headers["content-type"] = "application/json";
+  const token = await accessToken(); if (token) headers.authorization = `Bearer ${token}`;
+  const r = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   let json: any = null; try { json = await r.json(); } catch { /* empty body */ }
   return { ok: r.ok, status: r.status, body: json };
 }
@@ -26,7 +29,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   useEffect(() => { try { const l = localStorage.getItem("lhd-lang"); if (l === "en" || l === "th") setLangState(l); } catch { /* storage blocked */ } }, []);
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);
-  useEffect(() => { if (path === "/dev-login") return; api<Me & { error?: string }>("GET", "/api/me").then(r => {
+  useEffect(() => { if (path === "/dev-login" || path === "/signin") return; api<Me & { error?: string }>("GET", "/api/me").then(r => {
     if (r.ok) { setMe(r.body); setMeState("ok"); } else setMeState(r.status === 401 ? "signed_out" : r.status === 403 ? "not_staff" : "error"); }); }, [path]);
   const setLang = useCallback((l: Lang) => { setLangState(l); try { localStorage.setItem("lhd-lang", l); } catch { /* storage blocked */ } }, []);
   const t = useCallback((k: string, p?: Record<string, string | number>) => translate(lang, k, p), [lang]);
@@ -35,7 +38,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
 export function Shell({ children, wide = true }: { children: React.ReactNode; wide?: boolean }) {
   const { t, lang, setLang, me, meState } = useApp(); const router = useRouter(); const path = usePathname();
-  const signOut = () => { document.cookie = "lhd_dev_user=; path=/; max-age=0"; router.push("/dev-login"); };
+  const sb = supabase(); const signInPath = sb ? "/signin" : "/dev-login";
+  const signOut = async () => { document.cookie = "lhd_dev_user=; path=/; max-age=0"; if (sb) await sb.auth.signOut(); document.cookie = "lhd_at=; path=/; max-age=0"; router.push(signInPath); };
   return (
     <>
       <header className="bar">
@@ -52,7 +56,7 @@ export function Shell({ children, wide = true }: { children: React.ReactNode; wi
           <Link key={href} className="tab" role="tab" aria-selected={path.startsWith(href)} href={href}>{t(k)}</Link>)}</nav>
       </header>
       <main className="wrap pad" style={wide ? undefined : { maxWidth: 900 }}>
-        {meState === "signed_out" ? <div className="empty"><p>{t("signedOut")}</p><Link className="btn primary" href="/dev-login">{t("signInAs")}</Link></div>
+        {meState === "signed_out" ? <div className="empty"><p>{t("signedOut")}</p><Link className="btn primary" href={signInPath}>{t(sb ? "signIn" : "signInAs")}</Link></div>
           : meState === "not_staff" ? <div className="banner bad">{t("notStaff")}</div>
           : meState === "error" ? <div className="banner bad">{t("error")}</div>
           : meState === "loading" ? <div className="empty"><p>{t("loading")}</p></div>

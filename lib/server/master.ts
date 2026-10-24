@@ -229,3 +229,28 @@ export async function updateCompany(c: PoolClient, who: Caller, b: Record<string
   await log(c, who, "settings", "company", "updated", { changed: diff(before, value) });
   return value;
 }
+
+// ---------- invites (M6) ----------
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export async function listInvites(c: PoolClient, who: Caller) {
+  need(who, "admin");
+  return (await c.query(`select email, role, name, invited_at as "invitedAt", used_at as "usedAt" from staff_invites order by used_at nulls first, invited_at desc`)).rows;
+}
+export async function createInvite(c: PoolClient, who: Caller, b: Record<string, unknown>) {
+  need(who, "admin");
+  const email = String(b.email ?? "").trim().toLowerCase(); if (!EMAIL.test(email) || email.length > 200) throw bad("bad_email");
+  const role = String(b.role ?? ""); if (!ROLES.includes(role)) throw bad("bad_role");
+  const name = text(b.name, "name", { max: 100 });
+  const r = await c.query(`insert into staff_invites (email, role, name, invited_by) values ($1,$2,$3,$4)
+    on conflict (email) do update set role = excluded.role, name = excluded.name, invited_by = excluded.invited_by, invited_at = now() where staff_invites.used_at is null returning email`, [email, role, name, who.id]);
+  if (!r.rowCount) throw bad("already_joined", "This email has already joined; change their role on the team list");
+  await log(c, who, "staff", email, "invited", { role });
+  return { email };
+}
+export async function deleteInvite(c: PoolClient, who: Caller, email: string) {
+  need(who, "admin");
+  const r = await c.query("delete from staff_invites where email = $1 and used_at is null", [email.toLowerCase()]);
+  if (!r.rowCount) throw new ApiError(404, "not_found");
+  await log(c, who, "staff", email.toLowerCase(), "invite_removed", {});
+  return { email };
+}

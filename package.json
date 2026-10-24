@@ -21,7 +21,11 @@
     "test:e2e": "node e2e/db.js setup && playwright test; s=$?; node e2e/db.js teardown; exit $s",
     "test:master": "node --test --test-concurrency=1 tests/master-api.test.js",
     "test:slice4": "node --test --test-concurrency=1 tests/slice4-api.test.js",
-    "test:crewids": "node --test --test-concurrency=1 tests/crewids-api.test.js"
+    "test:crewids": "node --test --test-concurrency=1 tests/crewids-api.test.js",
+    "test:backup": "node --test --test-concurrency=1 tests/backup.test.js",
+    "backup": "node scripts/backup.js create",
+    "backup:verify": "node scripts/backup.js verify",
+    "test:auth": "node --test --test-concurrency=1 tests/auth.test.js"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",
@@ -34,6 +38,8 @@
     "typescript": "6.0.3"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.117.2",
+    "jose": "6.2.12",
     "next": "16.3.8",
     "pg": "8.23.1",
     "react": "19.3.0",
