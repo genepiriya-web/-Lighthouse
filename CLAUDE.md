@@ -35,7 +35,8 @@ Gene (MD) decides. Give pros and cons for every proposal. Never guess facts: wri
 - Master data (`lib/server/master.ts`): edits versioned by `updatedAt` (409 `stale`), logged with before/after. Editing a legacy product/customer sets `source = 'v2'` so the importer stops overwriting it. Tax IDs never go into the activity log.
 - Crew national IDs (`lib/server/crewids.ts`): only through the server, admin only, encrypted with `CREW_ID_KEY`. Never return a full ID except from `reveal` or an opened client link, and log both. Never put an ID in activity, responses, fixtures, seeds or logs; tests use `syntheticId()`. Client-link GETs must not reveal anything (chat previews fetch them).
 - Routes in `app/api/**` stay thin: parse, `requireStaff`, call the service.
-- `LHD_AUTH=dev` (header `x-dev-user`) is for local dev/tests only and refuses to run unless `DATABASE_URL` is on this machine. Real sign-in (Supabase) is M6; until then every non-dev request is 401.
+- Sign-in (`lib/server/auth.ts`): Supabase access tokens, verified per Supabase's docs (key list for RS256/ES256, `/auth/v1/user` for HS256). The `lhd_at` cookie counts for GET/HEAD only; changes need `Authorization: Bearer` (no CSRF). New people join through `staff_invites` on first verified-email sign-in. `LHD_AUTH=dev` (header `x-dev-user`) is for local dev/tests only and refuses a non-local database.
+- Backups (`scripts/backup.js`): every public table must be in `TABLES` (create() refuses otherwise). Never commit backups; `data/` is git-ignored. Production go-live steps live in `docs/GO-LIVE.md` and are Gene's to run (secrets).
 
 ## Commands
 - `npm run build` (artifact page + Next.js) · `npm run build:artifact` · `npm run typecheck`
@@ -44,6 +45,7 @@ Gene (MD) decides. Give pros and cons for every proposal. Never guess facts: wri
 - `npm run test:master` — catalog/customers/crew/team/settings API (uses `tests/helpers/server.js`)
 - `npm run test:slice4` — cockpit and documents API
 - `npm run test:crewids` — crew national IDs
+- `npm run test:backup` · `npm run test:auth`
 - `npm run test:e2e` — Playwright at 390 × 844 on a throwaway database (`e2e/db.js`)
 - `npm run test:orders` — starts the built app on a throwaway database and drives the order API as each role (needs `npm run build` + local Postgres)
 - Parity is skipped until `data/parity.json` exists. Build it with `node scripts/make-parity.js <artifact-db-export-dir>`.

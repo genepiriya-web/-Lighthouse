@@ -23,6 +23,9 @@ npm run test:orders # order API end to end, as each role (after npm run build)
 npm run test:master # catalog, customers, crew rates, team, settings — roles, privacy, re-import safety
 npm run test:slice4 # cockpit (admin) and job documents over HTTP
 npm run test:crewids # crew national IDs: admin-only, encrypted, logged, client links
+npm run test:backup # encrypted backup → restore → every table identical
+npm run test:auth  # Supabase token checks, invites, CSRF (fake Supabase)
+npm run backup && npm run backup:verify -- data/backups/<file>.lhdbk   # back up, then prove it restores
 npm run test:e2e   # Playwright at 390 px: a job's life as sale → store → CEO → store (after npm run build)
 ```
 
@@ -55,6 +58,7 @@ All writes need `rev` (the version you read) and return the new `rev`; a stale `
 | POST · DELETE | `/api/crew-ids/:crewId/reveal` (logged) · `/api/crew-ids/:crewId` | admin |
 | GET · POST | `/api/orders/:id/crew` · `/api/orders/:id/crew-links` `{ recipient, hours, show }` | admin; the link is returned once |
 | POST | `/api/crew-links/:linkId/revoke` | admin |
+| GET · POST · DELETE | `/api/staff/invites`, `/api/staff/invites/:email` | admin |
 | GET · POST | `/share/crew/:token` | anyone with the link: GET shows a button, POST shows the list (counted, logged) |
 | GET | `/api/orders/:id/document?kind=quote\|draft\|items&disc=1\|0` | any staff (HTML file, as the artifact downloaded) |
 
@@ -65,6 +69,9 @@ node scripts/dev-staff.js          # five made-up staff, one per role (db:start 
 npm run build
 LHD_AUTH=dev npm start             # then open http://localhost:3000/dev-login
 ```
-`/dev-login` picks a test staff member (works only against a local database). API callers can send `x-dev-user: <staff user id>` instead. Real sign-in comes with Supabase (M6).
+`/dev-login` picks a test staff member (works only against a local database). API callers can send `x-dev-user: <staff user id>` instead.
+
+### Real sign-in (Supabase)
+Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and leave `LHD_AUTH` unset; staff sign in at `/signin`. The first admin is invited with `node scripts/invite.js <email> admin`. Full checklist: `docs/GO-LIVE.md`.
 
 See `CLAUDE.md` for the rules and `docs/PLAN.md` for the move to a standalone app.
