@@ -27,6 +27,7 @@ npm run test:backup # encrypted backup → restore → every table identical
 npm run test:auth  # Supabase token checks, invites, CSRF (fake Supabase)
 npm run backup && npm run backup:verify -- data/backups/<file>.lhdbk   # back up, then prove it restores
 npm run test:trial # trial PIN lock and feedback
+npm run test:notify # bug reports: type, details, Discord notice (fake Discord)
 npm run test:e2e   # Playwright at 390 px: a job's life as sale → store → CEO → store (after npm run build)
 ```
 

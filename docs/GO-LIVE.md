@@ -20,6 +20,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 - `CREW_ID_KEY` — encrypts crew national IDs. Lost key = re-import the IDs.
 - `BACKUP_KEY` — encrypts backups. Lost key = backups can't be opened.
+- Optional, `DISCORD_WEBHOOK_URL`: bug reports announced in a Discord channel. In Discord, open Channel settings → Integrations → Webhooks → New Webhook → Copy Webhook URL. Treat it like a password: anyone who has it can post in that channel. Set it in Vercel (and in `.env.local` for the trial). Set `LHD_PUBLIC_URL` to the app's address so the message links back.
 
 ## 3. Database — Gene runs, Claude checks the output
 In your terminal, with `DATABASE_URL` set to the Supabase connection string (session mode, port 5432):
