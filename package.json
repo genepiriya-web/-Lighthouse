@@ -27,7 +27,8 @@
     "backup:verify": "node scripts/backup.js verify",
     "test:auth": "node --test --test-concurrency=1 tests/auth.test.js",
     "test:trial": "node --test --test-concurrency=1 tests/trial.test.js",
-    "trial": "node scripts/trial.js"
+    "trial": "node scripts/trial.js",
+    "test:notify": "node --test --test-concurrency=1 tests/notify.test.js"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",

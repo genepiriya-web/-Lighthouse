@@ -26,13 +26,15 @@ if(!fs.existsSync(path.join(root,".next/BUILD_ID"))){ console.log("building the 
 
 const ips=Object.values(os.networkInterfaces()).flat().filter(i=>i&&i.family==="IPv4"&&!i.internal).map(i=>i.address);
 const app=spawn(process.execPath,[require.resolve("next/dist/bin/next"),"start","-H","0.0.0.0","-p",String(PORT)],
-  {cwd:root,stdio:["ignore","inherit","inherit"],env:{...process.env,LHD_AUTH:"dev",LHD_TRIAL_PINS:JSON.stringify(pins),NEXT_TELEMETRY_DISABLED:"1"}});
+  {cwd:root,stdio:["ignore","inherit","inherit"],env:{...process.env,LHD_AUTH:"dev",LHD_TRIAL_PINS:JSON.stringify(pins),NEXT_TELEMETRY_DISABLED:"1",
+    LHD_PUBLIC_URL:process.env.LHD_PUBLIC_URL||(ips[0]?`http://${ips[0]}:${PORT}`:"")}}); // Discord links point here
 let awake=null; if(process.platform==="darwin") awake=spawn("caffeinate",["-i","-w",String(app.pid)],{stdio:"ignore"});
 
 console.log(`\n  Lighthouse Dispatch — staff trial (ทดลองใช้)\n`);
 console.log(`  Open on phones connected to the same Wi-Fi:`);
 for(const ip of ips) console.log(`    http://${ip}:${PORT}/dev-login`);
 console.log(`  On this Mac: http://localhost:${PORT}/dev-login`);
+console.log(process.env.DISCORD_WEBHOOK_URL?`  Bug reports are announced in Discord (DISCORD_WEBHOOK_URL is set).`:`  Discord: off (no DISCORD_WEBHOOK_URL in .env.local) — reports still go to the Feedback page.`);
 console.log(`\n  PIN for each department (tell each team only its own; for new PINs delete .trial-pins.json and start again):`);
 for(const [d,label] of DEPTS) console.log(`    ${pins[d]}   ${label}`);
 console.log(`  If macOS asks whether "node" may accept incoming connections, choose Allow.`);

@@ -159,3 +159,20 @@ test("crew IDs on a phone: admin imports (masked), shows one (logged), sends a l
   await page.reload();
   await expect(page.getByText(/1\/20 views/)).toBeVisible();
 });
+
+test("bug report on a phone: pick a type, send from the page you're on; the admin sees it with its details", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("lhd-lang", "en"));
+  await as(page, "store"); await page.goto("/store");
+  await page.getByRole("button", { name: "Feedback" }).click();
+  await page.getByRole("button", { name: "Confusing" }).click();
+  await expect(page.getByRole("button", { name: "Confusing" })).toHaveAttribute("aria-pressed", "true");
+  await page.locator("textarea").fill("Where is the return button?");
+  await noSidewaysScroll(page, "feedback form");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText("Thank you — sent.")).toBeVisible();
+  await as(page, "admin"); await page.goto("/feedback");
+  const row = page.locator(".jrow", { hasText: "Where is the return button?" });
+  await expect(row).toContainText("Confusing"); await expect(row).toContainText("/store"); await expect(row).toContainText("390×844");
+  await noSidewaysScroll(page, "feedback list");
+  await page.getByRole("button", { name: "Bug" }).click(); await expect(row).toHaveCount(0);
+});

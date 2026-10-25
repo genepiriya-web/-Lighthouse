@@ -256,15 +256,29 @@ export async function deleteInvite(c: PoolClient, who: Caller, email: string) {
 }
 
 // ---------- trial feedback ----------
+const KINDS = ["bug", "confusing", "idea", "other"];
+/** Only plain, bounded details from the screen: browser, screen size, language, recent errors. Nothing else is kept. */
+function cleanMeta(m: unknown) {
+  if (!m || typeof m !== "object") return null; const x = m as Record<string, unknown>;
+  const str = (v: unknown, n: number) => typeof v === "string" ? v.slice(0, n) : undefined;
+  const int = (v: unknown) => Number.isInteger(v) && (v as number) >= 0 && (v as number) < 100000 ? v as number : undefined;
+  const errors = Array.isArray(x.errors) ? x.errors.slice(-10).map(e => String(e).slice(0, 300)) : undefined;
+  return { ua: str(x.ua, 300), vw: int(x.vw), vh: int(x.vh), lang: str(x.lang, 20), errors };
+}
 export async function sendFeedback(c: PoolClient, who: Caller, b: Record<string, unknown>) {
   const body = String(b.text ?? "").trim(); if (!body) throw bad("required", "text"); if (body.length > 4000) throw bad("too_long");
+  const kind = KINDS.includes(String(b.kind)) ? String(b.kind) : "other";
   const page = String(b.page ?? "").slice(0, 200) || null;
-  const r = await c.query("insert into feedback (user_id, user_name, role, page, text) values ($1,$2,$3,$4,$5) returning id", [who.id, who.name, who.role, page, body]);
+  const recent = (await c.query("select count(*)::int n from feedback where user_id = $1 and at > now() - interval '1 hour'", [who.id])).rows[0].n;
+  if (recent >= 20) throw new ApiError(429, "too_many_reports", "Too many reports in an hour. Try again later.");
+  const r = await c.query("insert into feedback (user_id, user_name, role, page, text, kind, meta) values ($1,$2,$3,$4,$5,$6,$7) returning id",
+    [who.id, who.name, who.role, page, body, kind, cleanMeta(b.meta)]);
   return { id: r.rows[0].id };
 }
 export async function listFeedback(c: PoolClient, who: Caller) {
   need(who, "admin");
-  return (await c.query(`select id, at, user_name as "userName", role, page, text, status from feedback order by (status = 'new') desc, at desc limit 500`)).rows;
+  return (await c.query(`select id, at, user_name as "userName", role, page, text, status, kind, meta, notified_at as "notifiedAt", notify_error as "notifyError"
+    from feedback order by (status = 'new') desc, at desc limit 500`)).rows;
 }
 export async function markFeedback(c: PoolClient, who: Caller, id: number, b: Record<string, unknown>) {
   need(who, "admin");
