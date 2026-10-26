@@ -350,6 +350,15 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
       - **36b:** Do freelancers have 3% withholding tax deducted, and does HR need that in the crew summary?
       - **36c:** Are vehicles rented to clients as items (e.g. grip/generator trucks in the catalog), only used for transport, or both?
       - **36d:** Who in Support verifies job sheets, and should Support get its own role now? Today it has Sales rights (Q34).
+37. **Express accounting program (Q37), Gene, 26 Oct 2026:**
+    - What we know: Accounting uses Express for the company's books and tax filing. It is licensed (a purchased key).
+    - Proposal: Express stays the official books. v2 doesn't replace it, and never writes into its data files. v2 feeds it either by a file Accounting imports, if Express supports that, or by a keying summary.
+    - Ask Accounting:
+      - Which Express version is it?
+      - Is there an import menu? If so, what file format does it take? Is the import a paid add-on to the licence?
+      - Do tax invoices and invoices come out of Express today?
+      - What does Accounting key into Express for each rental job?
+    - The web search found no official Express API documentation. Unconfirmed.
 28. **Local test sign-in.** `/dev-login` lets you pick one of five made-up staff (`node scripts/dev-staff.js`). It works only with `LHD_AUTH=dev` against a database on this Mac. Real sign-in replaces it in M6.
     - **Q24:** some "below catalog" lines may be quotes made before a catalog price went up, not discounts. Should a job keep the catalog price from the day it was quoted?
     - **Q25, decided by Gene on 23 Oct 2026: no.** Sales can still mark lines FOC or standby, as today. Every change, including FOC, is recorded in the activity log.
