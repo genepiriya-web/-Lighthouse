@@ -337,6 +337,18 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
     - **Report text in Discord:** off by default, because staff may name customers and Discord is a service outside the company (PDPA). Pro of turning it on (`DISCORD_INCLUDE_TEXT=1`): the team can read the problem without opening the app. Con: customer names could end up in Discord history. Your call.
     - **Who should see the Discord channel?** Anyone with the channel sees every report number, page and department. Suggest a private channel for you plus whoever fixes things.
     - **Retry timing:** an unsent report is retried only when someone sends another report or an admin opens Feedback. No background timer, so a report can sit unsent if nobody does either. On Vercel later, a scheduled retry can be added if this matters.
+36. **Company workflow report (Q36), from Gene's assistant, 26 Oct 2026** (Workflow_Report.pdf: 7 departments, the job sheet is the control point). Gene's answers, 26 Oct:
+    - The report is Lighthouse's own, written by his assistant.
+    - Field crew are **both** staff and freelancers. v2 already tells them apart: line type 5 = crew, 7 = freelance.
+    - **1 cue = 12 hours.** Some jobs use **1 cue = 16 hours, which needs the CEO's approval before the job is accepted.**
+    - **The signed job sheet stays on paper** (legal effect). v2 records its numbers and a scan; it doesn't replace it.
+    - Crew are paid on the same cycle as company staff.
+    - About **45–50 vehicles**.
+    - Still open:
+      - **36a:** When does OT start: after the cue's 12/16 hours on location, or from call time? Is it rounded (to 30 min, 1 hour)? Is the rule the same for billing the client and paying crew?
+      - **36b:** Do freelancers have 3% withholding tax deducted, and does HR need that in the crew summary?
+      - **36c:** Are vehicles rented to clients as items (e.g. grip/generator trucks in the catalog), only used for transport, or both?
+      - **36d:** Who in Support verifies job sheets, and should Support get its own role now? Today it has Sales rights (Q34).
 28. **Local test sign-in.** `/dev-login` lets you pick one of five made-up staff (`node scripts/dev-staff.js`). It works only with `LHD_AUTH=dev` against a database on this Mac. Real sign-in replaces it in M6.
     - **Q24:** some "below catalog" lines may be quotes made before a catalog price went up, not discounts. Should a job keep the catalog price from the day it was quoted?
     - **Q25, decided by Gene on 23 Oct 2026: no.** Sales can still mark lines FOC or standby, as today. Every change, including FOC, is recorded in the activity log.
@@ -362,3 +374,45 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
 - 232 differ. In every one of them `oneHand` is lower, and often negative (Bazooka Set: stock 20, oneHand −17; Aputure 600X: stock 10, oneHand −18).
 
 A count of units owned can't be negative. So `stock` very likely means "units we own" (v2 already uses it for clash checks), and `oneHand` means "available now". It probably drifts negative because staff skip Returned, so the old system never sees the gear come back. This is an inference from the numbers, not confirmed. **Ask Store to count 10–20 of these items**, including a few where the two counts differ, and compare with `stock`.
+
+## 6. Proposal: M7 job sheet (waiting for Gene's approval)
+
+From the workflow report (Q36). It is the next block after fixing what staff report at the Tuesday trial. The report's main risk: OT is paid to crew but not billed to the client, because the job sheet comes back late, gets lost or is wrong. Today v2 knows what was **quoted** (cues and OT hours per crew line), but not what **happened**.
+
+**M7a. Support role + handoff from Sales (S)**
+- New `support` role. It has Sales' rights (Q34) plus verifying job sheets. In `logic.js` calls it is treated as `sale`, so the spec is unchanged.
+- Before Quote → Order, the job must state:
+  - the cue length: 12 h, or 16 h;
+  - the OT rate on every crew line;
+  - any special conditions, in a free-text field.
+- **A 16-hour cue needs the CEO's confirmation.** It works the same way as special prices: an admin confirms, and the confirmation lapses if the value changes.
+- Pros: small; enforces the report's "standard handoff form"; the 16 h rule is enforced, not remembered.
+- Cons: one more required step for Sales.
+
+**M7b. Job sheet record (L)**
+- The paper sheet stays the legal original. After the shoot, Support enters from it, for each shoot day:
+  - on-location start and end;
+  - cues;
+  - OT hours for each crew member.
+- Support attaches a photo or scan of the signed paper sheet.
+- v2 compares this with the quote and shows the difference:
+  - extra cues and OT to bill, which goes to Accounting;
+  - cues and OT for each person, which goes to HR.
+  - Both read the same numbers (report point 4).
+- Status: waiting for sheet → entered → sent back to crew to fix → verified. After it is verified, the sheet is locked. Every change is logged.
+- KPIs come from the record itself: hours from wrap to sheet received, and the % of sheets sent back.
+- Options for who enters the numbers:
+
+  | | Who enters | Pros | Cons |
+  | --- | --- | --- | --- |
+  | **A (recommended first)** | Support, from the paper sheet | No crew accounts or phone training. Works with the paper the law needs | Support types it in; the sheet still has to come back to the office |
+  | B (later) | Crew lead on a phone at the set, and Support checks it against the photo | Numbers arrive the same day | Crew need accounts (LINE login not yet proven, GO-LIVE §7); more training |
+- Scans hold client signatures and names. Only admin, support and accounting can see them. They are stored on this Mac during the trial, and in a private Supabase Storage bucket in production.
+- Needs answers to 36a (the OT rule) before the comparison can be built. Until then it shows hours only, not baht.
+
+**After M7 (not proposed yet):**
+- Invoices and payments: they use verified sheets.
+- HR crew summary per pay cycle, staff and freelance separately (36b).
+- Return-condition checklist → repairs → damage charge.
+- Vehicles: 45–50 of them, so this may matter more than first thought (36c).
+
