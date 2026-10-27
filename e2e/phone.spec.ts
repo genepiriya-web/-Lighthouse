@@ -72,6 +72,13 @@ test("sale → store → CEO → store: special price blocks shipping until conf
   const disc = page.locator(".lrow:not(.head)").first().locator("input").nth(3);
   await expect(disc).toHaveValue("10"); await noSidewaysScroll(page, "tab discount");
   await disc.fill("0"); await expect(page.getByText(/saves itself within 5 seconds/)).toHaveCount(0, { timeout: 9000 });
+  // the quote-wide discount box at the bottom sets every line's discount, so the quotation's lines show it (Gene, 27 Oct)
+  await page.locator(".totals").last().locator("input").first().fill("15"); await page.locator(".totals").last().locator("input").first().blur();
+  await expect(disc).toHaveValue("15");
+  await expect(page.getByText(/saves itself within 5 seconds/)).toHaveCount(0, { timeout: 9000 });
+  await page.reload(); await expect(page.locator(".lrow:not(.head)").first().locator("input").nth(3)).toHaveValue("15");
+  await page.locator(".lrow:not(.head)").first().locator("input").nth(3).fill("0");
+  await expect(page.getByText(/saves itself within 5 seconds/)).toHaveCount(0, { timeout: 9000 });
   // transport remark (Gene, 27 Oct): pick-or-type note on a transport line, saved with the items
   await page.getByRole("tab", { name: /Transport/ }).click();
   await page.getByPlaceholder("Search item name").fill("Generator");

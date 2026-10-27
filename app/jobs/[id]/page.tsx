@@ -87,6 +87,20 @@ function Sheet({ id }: { id: string }) {
   const breakOf = (k: string) => d.needsCeo.filter(b => b.k === k);
 
   const shortMsg = (r: Any) => r?.short?.length && setErr(`${t("storeShort")} ${r.short.map((x: Any) => `${d.lines.find(l => l.pid === x.pid)?.code ?? "#" + x.pid} −${x.short}`).join(", ")}`);
+  // The quote-wide discount (Gene, 27 Oct): sets the discount on every Equipment and Sub-rent line (not package parts, FOC
+  // or standby), so each line on the quotation shows it; any line can still be changed by hand after. A job that had the
+  // old order-level extra discount gets it cleared first, so the two never stack. Lines go out with autosave.
+  const discLines = lines.filter(l => canDiscount(l.t) && !l.parent && !l.foc && !l.sb);
+  const dOf = (l: Line) => Number(l.disc ?? 0) || 0;
+  const commonDisc = !discLines.length ? 0 : discLines.every(l => dOf(l) === dOf(discLines[0])) ? dOf(discLines[0]) : null;
+  const applyAllDisc = async (v: number) => {
+    const setAll = (ls: Data["lines"]) => ls.map(l => canDiscount(l.t) && !l.parent && !l.foc && !l.sb ? { ...l, disc: v } : l);
+    if (!o.extra_disc) { setDraft(setAll(lines)); return; }
+    setBusy(true); const p = await api("PATCH", `/api/orders/${encodeURIComponent(id)}`, { rev: o.rev, extraDisc: 0 });
+    const g = p.ok ? await api<Data>("GET", `/api/orders/${encodeURIComponent(id)}`) : null; setBusy(false);
+    if (!p.ok) { setErr(t(p.body?.error ?? "error")); return; }
+    if (g?.ok) { setD(g.body); setDraft(setAll(g.body.lines)); }
+  };
   const saveHeader = (k: string, v: string) => { const cur = String(o[col(k)] ?? ""); if (v === cur) return; const val = k === "dept" || k === "dpw" ? (v === "" ? null : +v) : v; run("PATCH", "", { [k]: val }).then(shortMsg); };
   const setLine = (k: string, patch: Partial<Line>) => setDraft(syncChildren(lines.map(l => l.k === k ? { ...l, ...patch } : l)) as Data["lines"]);
   const removeLine = (k: string) => setDraft(lines.filter(l => l.k !== k && l.parent !== k));
@@ -178,7 +192,10 @@ function Sheet({ id }: { id: string }) {
           <div className="totals"><b style={{ gridColumn: "1/-1" }}>{t("t_type", { t: typeLabel(tt) })}</b><span>{t("t_list")}</span><span className="num">฿ {money(T.list)}</span><span>{t("t_disc")}</span><span className="num">฿ {money(T.disc)}</span><span>{t("t_sub")}</span><span className="num">฿ {money(T.sub)}</span></div>
           <div className="totals"><b style={{ gridColumn: "1/-1" }}>{t("t_grand")}</b>
             <span>{t("t_list")}</span><span className="num">฿ {money(G.list)}</span><span>{t("t_disc")}</span><span className="num">฿ {money(G.disc)}</span><span>{t("t_sub")}</span><span className="num">฿ {money(G.sub)}</span>
-            <span>{t("extraDisc")}{!legacy && <span className="muted small"> · {t("discEquipOnly")}</span>}</span><span>{editM && !dirty ? <input className="inp cell num" type="number" min={0} max={100} step="0.01" defaultValue={o.extra_disc} key={"x" + o.rev} onBlur={e => +e.target.value !== o.extra_disc && run("PATCH", "", { extraDisc: +e.target.value || 0 })} /> : <span className="num">{o.extra_disc}%</span>}</span>
+            {editL ? <><span>{t("allDisc")}<span className="muted small"> · {t("discTypesOnly")}</span></span><span><input className="inp cell num" type="number" min={0} max={100} step="0.01" placeholder={commonDisc === null ? t("mixed") : ""}
+              defaultValue={commonDisc ?? ""} key={"ad" + o.rev + (commonDisc ?? "m") + (dirty ? "d" : "")} disabled={busy || (dirty && !!o.extra_disc)}
+              onBlur={e => { if (e.target.value === "") return; const v = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)); if (v !== commonDisc || o.extra_disc) applyAllDisc(v); }} /></span></>
+            : <><span>{t("extraDisc")}{!legacy && <span className="muted small"> · {t("discEquipOnly")}</span>}</span><span>{editM && !dirty ? <input className="inp cell num" type="number" min={0} max={100} step="0.01" defaultValue={o.extra_disc} key={"x" + o.rev} onBlur={e => +e.target.value !== o.extra_disc && run("PATCH", "", { extraDisc: +e.target.value || 0 })} /> : <span className="num">{o.extra_disc}%</span>}</span></>}
             {G.extra ? <><span>{t("t_extra")}</span><span className="num">- ฿ {money(G.extra)}</span></> : null}
             <span>{t("adjustTo")}</span><span>{editM && !dirty ? <input className="inp cell num" style={{ width: 110 }} type="number" step="0.01" placeholder={money(G.sub - G.extra)} defaultValue={G.adj ? (G.sub - G.extra + G.adj).toFixed(2) : ""} key={"a" + o.rev}
               onBlur={e => { const G0 = orderTotalsV2(lines, { ...money$, adjust: 0 }); const v = e.target.value === "" ? 0 : Math.round(((parseFloat(e.target.value) || 0) - (G0.sub - G0.extra)) * 100) / 100; if (v !== o.adjust) run("PATCH", "", { adjust: v }); }} />
