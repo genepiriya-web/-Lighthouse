@@ -6,11 +6,12 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Shell, api, useApp, stCls, money, fmtD } from "../../ui/app";
-import { TYPES, STATUSES, STOCKED_TYPES, MOVES, moveCheck, canEditLines, orderTotals, typeTotals, lineCalc, chargeDays, defaultDisc, expandKit, syncChildren, type Line } from "../../../lib/logic";
-import { canEditHeader, canEditMoney, canStore, type PriceBreak } from "../../../lib/rules";
+import { TYPES, STATUSES, STOCKED_TYPES, orderTotals, typeTotals, lineCalc, chargeDays, defaultDisc, expandKit, syncChildren, type Line } from "../../../lib/logic";
+import { canEditHeader, canEditMoney, canStore, STORE_ADD, STORE_ADD_TYPES, MOVES_V2, canEditItems, moveCheckV2, unpriced, type PriceBreak } from "../../../lib/rules";
 
 type Any = Record<string, any>;
-interface Data { order: Any; lines: Array<Line & { k: string }>; activity: Any[]; needsCeo: PriceBreak[]; customer: { id: string; name: string; default_disc: number } | null; }
+interface Data { order: Any; lines: Array<Line & { k: string }>; activity: Any[]; needsCeo: PriceBreak[]; customer: { id: string; name: string; default_disc: number } | null;
+  additions: Array<{ id: string; no: string; status: string }>; additionOf: { id: string; no: string; status: string } | null; }
 const typeLabel = (id: number) => { const k = TYPES.find(x => x.id === id)?.k ?? ""; return k ? k[0] + k.slice(1).toLowerCase() : ""; };
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 
@@ -53,11 +54,12 @@ function Sheet({ id }: { id: string }) {
 
   const editH = !legacy && canEditHeader(role, o.status);
   const editM = !legacy && canEditMoney(role, o.status);
-  const editL = !legacy && canEditLines(role, o.status);
+  const editL = !legacy && canEditItems(role, o.status);
+  const storeAdd = o.status === STORE_ADD; const noPrice = storeAdd && role === "store"; // Store adds items; Sales prices them
   const G = orderTotals(lines, money$); const T = typeTotals(lines, tt);
   const logicOrder = { status: o.status, customerName: o.customer_name ?? "", ship: o.ship ?? "", ret: o.ret ?? "" };
-  const moves = (MOVES[o.status] ?? []).map(s => { let why: string | null = moveCheck(role, logicOrder, s, lines, []); if (!why && s === "Shipped" && d.needsCeo.length) why = "rPriceApproval"; return { s, why }; }).filter(m => m.why !== "rRole");
-  const canCancel = !legacy && moveCheck(role, logicOrder, "Cancel", lines, []) === null;
+  const moves = (MOVES_V2[o.status] ?? []).map(s => { let why: string | null = moveCheckV2(role, logicOrder, s, lines, []); if (!why && s === "Shipped" && d.needsCeo.length) why = "rPriceApproval"; return { s, why }; }).filter(m => m.why !== "rRole");
+  const canCancel = !legacy && moveCheckV2(role, logicOrder, "Cancel", lines, []) === null;
   const idx = STATUSES.indexOf(o.status);
   const breakOf = (k: string) => d.needsCeo.filter(b => b.k === k);
 
@@ -73,14 +75,20 @@ function Sheet({ id }: { id: string }) {
           <h2 style={{ fontFamily: "var(--f-display)", fontSize: 28 }}>{o.job_title || "—"}</h2><div className="muted">{o.customer_name}</div>
         </div>
       </div>
-      {o.status !== "Cancel" && <ol className={`stepper st-${String(o.status).split(" ")[0]}`}>{STATUSES.map((s, i) => <li key={s} className={i < idx ? "done" : i === idx ? "now" : ""}>{s}</li>)}</ol>}
+      {idx >= 0 && <ol className={`stepper st-${String(o.status).split(" ")[0]}`}>{STATUSES.map((s, i) => <li key={s} className={i < idx ? "done" : i === idx ? "now" : ""}>{s}</li>)}</ol>}
       {legacy && <div className="banner">{t("legacyRo")}</div>}
+      {d.additionOf && <div className="banner">{t("storeAddOf")} <Link href={`/jobs/${encodeURIComponent(d.additionOf.id)}`} className="mono">#{d.additionOf.no}</Link>
+        {storeAdd && unpriced(d.lines).length > 0 && <> · <b>{t("waitPrices", { n: unpriced(d.lines).length })}</b></>}</div>}
+      {d.additions.length > 0 && <div className="banner">{t("additions")}: {d.additions.map(a => <span key={a.id}> <Link href={`/jobs/${encodeURIComponent(a.id)}`} className="mono">#{a.no}</Link> <span className={stCls(a.status)}>{a.status}</span></span>)}</div>}
       {stale && <div className="banner bad row" style={{ justifyContent: "space-between" }}><span>{t("stale")}</span><button className="btn sm" type="button" onClick={load}>{t("reload")}</button></div>}
       {err && <div className="banner bad">{err}</div>}
 
       {(role === "admin" || role === "sale") && <div className="row"><button className="btn ghost" type="button" disabled={busy || dirty} onClick={async () => {
         setBusy(true); const r = await api("POST", `/api/orders/${encodeURIComponent(id)}/copy`, {}); setBusy(false);
         if (r.ok) router.push(`/jobs/${encodeURIComponent(r.body.id)}`); else setErr(t(r.body?.error ?? "error")); }}>{t("copyJob")}</button></div>}
+      {!legacy && o.status === "Approve" && canStore(role) && <div className="row"><button className="btn" type="button" disabled={busy || dirty} onClick={async () => {
+        setBusy(true); const r = await api("POST", `/api/orders/${encodeURIComponent(id)}/store-addition`, {}); setBusy(false);
+        if (r.ok) router.push(`/jobs/${encodeURIComponent(r.body.id)}`); else setErr(t(r.body?.error ?? "error")); }}>{t("storeAddBtn")}</button></div>}
       {!legacy && (moves.length > 0 || canCancel) && <div className="row">
         {moves.map((m, i) => <button key={m.s} className={`btn ${i === 0 ? "primary" : ""}`} type="button" disabled={!!m.why || dirty || busy} onClick={() => run("POST", "/move", { to: m.s })}>{t("moveTo", { s: m.s })}</button>)}
         {canCancel && <button className="btn danger" type="button" disabled={busy} onClick={() => { if (!confirmCancel) { setConfirmCancel(true); return; } setConfirmCancel(false); run("POST", "/move", { to: "Cancel" }); }}>{confirmCancel ? t("cancelSure") : t("cancelJob")}</button>}
@@ -106,26 +114,27 @@ function Sheet({ id }: { id: string }) {
       </details>
 
       <section className="sec">
-        <h3>{t("items")}<small>{t("t_grand")}: ฿ {money(G.total)}</small></h3>
+        <h3>{t("items")}{!noPrice && <small>{t("t_grand")}: ฿ {money(G.total)}</small>}</h3>
         {!editL && <div className="muted small">{t("readOnlyItems")}</div>}
-        <div className="ttabs" role="tablist">{TYPES.map(x => { const n = lines.filter(l => l.t === x.id && !l.parent).length;
+        <div className="ttabs" role="tablist">{TYPES.filter(x => !noPrice || STORE_ADD_TYPES.includes(x.id)).map(x => { const n = lines.filter(l => l.t === x.id && !l.parent).length;
           return <button key={x.id} className="ttab" type="button" role="tab" aria-selected={tt === x.id} onClick={() => setTt(x.id)}>{typeLabel(x.id)}{n ? <span className="n">{n}</span> : null}</button>; })}</div>
         <div>
-          <div className="lrow head"><span>{t("i_desc")}</span><span>{t("i_list")}</span><span>{t("i_qty")}</span><span>{t("i_days")}</span><span>{tt === 5 || tt === 7 ? t("i_ot") : t("i_disc")}</span><span style={{ textAlign: "right" }}>{t("i_total")}</span><span /></div>
+          <div className="lrow head"><span>{t("i_desc")}</span>{noPrice ? <span /> : <span>{t("i_list")}</span>}<span>{t("i_qty")}</span><span>{t("i_days")}</span>{noPrice ? <span /> : <span>{tt === 5 || tt === 7 ? t("i_ot") : t("i_disc")}</span>}<span style={{ textAlign: "right" }}>{noPrice ? "" : t("i_total")}</span><span /></div>
           {lines.filter(l => l.t === tt).map(l => { const child = !!l.parent; const c = lineCalc(l); const crew = l.t === 5 || l.t === 7; const can = editL && !child; const br = breakOf(l.k);
             const num = (f: keyof Line, step = "1") => <label><span className="lbl">{t(f === "list" ? "i_list" : f === "qty" ? "i_qty" : f === "days" ? "i_days" : f === "ot" ? "i_ot" : "i_disc")}</span>
               <input className="inp cell num" type="number" min={0} step={step} disabled={!can} value={String(l[f] ?? 0)} onChange={e => setLine(l.k, { [f]: Math.max(0, parseFloat(e.target.value) || 0) } as Partial<Line>)} /></label>;
             return <div key={l.k} className={`lrow ${child ? "child" : ""}`} style={br.length ? { background: "color-mix(in srgb,var(--warn) 10%,transparent)" } : undefined}>
               <span className="desc"><b>{l.code}</b>{l.desc}{crew && l.otRate ? <span className="muted small"> · {t("otPerHr", { r: "฿" + money(+l.otRate) })}</span> : null}{l.foc ? <span className="tag"> FOC</span> : null}{l.sb ? <span className="tag"> SB</span> : null}{child ? <span className="muted small"> · {t("kitOf")}</span> : null}</span>
-              {num("list", "0.01")}{num("qty")}{num("days", "0.5")}{crew ? num("ot", "0.5") : num("disc", "0.01")}
-              <span className="tot num" style={{ textAlign: "right" }}>฿ {money(c.total)}</span>
+              {noPrice ? <span /> : num("list", "0.01")}{num("qty")}{num("days", "0.5")}{noPrice ? <span /> : crew ? num("ot", "0.5") : num("disc", "0.01")}
+              <span className="tot num" style={{ textAlign: "right" }}>{noPrice ? "" : `฿ ${money(c.total)}`}</span>
               <span>{can && <button className="btn sm ghost" type="button" onClick={() => removeLine(l.k)} aria-label={t("remove")}>✕</button>}</span>
             </div>; })}
         </div>
-        {editL && <AddItem tt={tt} order={o} customer={d.customer} onAdd={add => setDraft([...lines, ...add])} />}
-        {dirty && <div className="row"><button className="btn primary" type="button" disabled={busy} onClick={async () => { const r = await run("PUT", "/lines", { lines: draft }); if (r) setDraft(null); }}>{t("saveItems")}</button>
+        {editL && <AddItem tt={tt} order={o} customer={d.customer} noPrice={noPrice} onAdd={add => setDraft([...lines, ...add])} />}
+        {dirty && <div className="row"><button className="btn primary" type="button" disabled={busy} onClick={async () => { const r = await run("PUT", "/lines", { lines: draft }); if (r) setDraft(null);
+          if (r?.short) setErr(`${t("storeShort")} ${r.short.map((x: Any) => `${lines.find(l => l.pid === x.pid)?.code ?? "#" + x.pid} −${x.short}`).join(", ")}`); }}>{t("saveItems")}</button>
           <button className="btn" type="button" onClick={() => setDraft(null)}>{t("cancel")}</button><span className="warn small">{t("unsaved")}</span></div>}
-        <div className="cols2">
+        {!noPrice && <div className="cols2">
           <div className="totals"><b style={{ gridColumn: "1/-1" }}>{t("t_type", { t: typeLabel(tt) })}</b><span>{t("t_list")}</span><span className="num">฿ {money(T.list)}</span><span>{t("t_disc")}</span><span className="num">฿ {money(T.disc)}</span><span>{t("t_sub")}</span><span className="num">฿ {money(T.sub)}</span></div>
           <div className="totals"><b style={{ gridColumn: "1/-1" }}>{t("t_grand")}</b>
             <span>{t("t_list")}</span><span className="num">฿ {money(G.list)}</span><span>{t("t_disc")}</span><span className="num">฿ {money(G.disc)}</span><span>{t("t_sub")}</span><span className="num">฿ {money(G.sub)}</span>
@@ -137,7 +146,7 @@ function Sheet({ id }: { id: string }) {
             <span>{t("insurance")}</span><span>{editM && !dirty ? <input className="inp cell num" type="number" min={0} step="0.01" defaultValue={o.insurance} key={"i" + o.rev} onBlur={e => +e.target.value !== o.insurance && run("PATCH", "", { insurance: +e.target.value || 0 })} /> : <span className="num">฿ {money(G.ins)}</span>}</span>
             <span>{t("t_vat")}{o.tax === "Not Vat" ? " (Not Vat)" : ""}</span><span className="num">฿ {money(G.vat)}</span>
             <span className="rule" /><span><b>{t("t_total")}</b></span><span className="big num">฿ {money(G.total)}</span></div>
-        </div>
+        </div>}
       </section>
 
       {["Approve", "Shipped", "Returned"].includes(o.status) && <Store o={o} lines={d.lines} can={!legacy && canStore(role) && o.status !== "Returned"} canRepair={!legacy && canStore(role)} run={run} busy={busy} />}
@@ -153,7 +162,7 @@ function Sheet({ id }: { id: string }) {
   );
 }
 
-function AddItem({ tt, order, customer, onAdd }: { tt: number; order: Any; customer: Data["customer"]; onAdd: (l: Array<Line & { k: string }>) => void }) {
+function AddItem({ tt, order, customer, noPrice, onAdd }: { tt: number; order: Any; customer: Data["customer"]; noPrice?: boolean; onAdd: (l: Array<Line & { k: string }>) => void }) {
   const { t } = useApp(); const [q, setQ] = useState(""); const [hits, setHits] = useState<Any[]>([]); const [deptOnly, setDeptOnly] = useState(true);
   useEffect(() => { if (q.trim().length < 2) { setHits([]); return; }
     const dept = deptOnly && order.dept ? `&dept=${order.dept}` : "";
@@ -177,7 +186,7 @@ function AddItem({ tt, order, customer, onAdd }: { tt: number; order: Any; custo
     {crew && hits.length > 0 && <div className="results">{hits.map(r => <div key={`${r.crewId}-${r.positionId}-${r.rateNo}`} className="res"><span style={{ minWidth: 0 }}>{r.posName} <span className="muted">· {r.name || r.nick}</span>
       <span className="muted small"> · <span className="mono">{r.posCode}</span> · ฿{money(r.price)} · {t("otPerHr", { r: "฿" + money(r.priceOt) })}</span>{r.needsReview ? <span className="tag"> {t("rateCheck")}</span> : null}</span>
       <button className="btn sm" type="button" onClick={() => addCrew(r)}>+</button></div>)}</div>}
-    {!crew && hits.length > 0 && <div className="results">{hits.map(p => <div key={p.id} className="res"><span style={{ minWidth: 0 }}><b className="mono">{p.code}</b> {p.desc}<span className="muted small"> · ฿{money(p.price)}{t("perDay")} · {t("stock")} {p.stock}{p.kit?.length ? ` · ${t("kit")} ${p.kit.length}` : ""}</span></span>
+    {!crew && hits.length > 0 && <div className="results">{hits.map(p => <div key={p.id} className="res"><span style={{ minWidth: 0 }}><b className="mono">{p.code}</b> {p.desc}<span className="muted small">{noPrice ? "" : ` · ฿${money(p.price)}${t("perDay")}`} · {t("stock")} {p.stock}{p.kit?.length ? ` · ${t("kit")} ${p.kit.length}` : ""}</span></span>
       <button className="btn sm" type="button" onClick={() => add(p)}>+</button></div>)}</div>}
   </div>;
 }

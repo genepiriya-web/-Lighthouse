@@ -7,11 +7,11 @@
 import "server-only";
 import type { PoolClient } from "pg";
 import {
-  STOCKED_TYPES, BLOCKING, MOVES, moveCheck, canEditLines, orderTotals, usageOf, syncChildren, bookedQty, r2,
+  STOCKED_TYPES, MOVES, orderTotals, usageOf, syncChildren, bookedQty, r2,
   type Line, type Order, type Status,
 } from "../logic";
 import { ApiError, bad } from "./http";
-import { priceBreaks, unapproved, canEditHeader, canEditMoney, type PriceBreak, type PriceApproval } from "../rules";
+import { priceBreaks, unapproved, canEditHeader, canEditMoney, STORE_ADD, HOLDING, STORE_ADD_TYPES, canEditItems, moveCheckV2, type PriceBreak, type PriceApproval } from "../rules";
 import type { Caller } from "./auth";
 
 // ---------- shapes ----------
@@ -121,12 +121,12 @@ async function resolveCustomer(c: PoolClient, fields: Record<string, unknown>) {
 // ---------- reads ----------
 export async function listOrders(c: PoolClient, q: { status?: string; search?: string; limit?: number; before?: string }) {
   const where: string[] = []; const args: unknown[] = [];
-  if (q.status === "open") where.push(`status in ('Quote','Order','Approve','Shipped','Returned')`);
+  if (q.status === "open") where.push(`status in ('Quote','Order','Approve','Shipped','Returned','Store Add')`);
   else if (q.status) { args.push(q.status); where.push(`status = $${args.length}`); }
   if (q.search) { args.push(`%${q.search}%`); where.push(`(no ilike $${args.length} or job_title ilike $${args.length} or customer_name ilike $${args.length} or dop ilike $${args.length})`); }
   if (q.before) { args.push(q.before); where.push(`no < $${args.length}`); }
   const limit = Math.max(1, Math.min(500, q.limit ?? 100)); args.push(limit);
-  const r = await c.query(`select id, no, owner, status, customer_name, job_title, job_type, dept, ship, ret, dop, sale, totals, rev
+  const r = await c.query(`select id, no, owner, status, customer_name, job_title, job_type, dept, ship, ret, dop, sale, totals, rev, addition_of
     from orders ${where.length ? "where " + where.join(" and ") : ""} order by no desc limit $${args.length}`, args);
   return { orders: r.rows, next: r.rowCount === limit ? r.rows[r.rows.length - 1].no : null };
 }
@@ -138,7 +138,10 @@ export async function getOrder(c: PoolClient, id: string) {
   const lines = await loadLines(c, id);
   const needsCeo = unapproved(await priceBreaksOf(c, lines), r.rows[0].price_approval);
   const customer = r.rows[0].customer_id ? (await c.query("select id, name, default_disc from customers where id = $1", [r.rows[0].customer_id])).rows[0] ?? null : null;
-  return { order: r.rows[0], lines, activity, needsCeo, customer };
+  // Store additions (Gene, 27 Oct): the jobs added to this one, and the job this one was added to
+  const additions = (await c.query("select id, no, status, rev from orders where addition_of = $1 order by no", [id])).rows;
+  const additionOf = r.rows[0].addition_of ? (await c.query("select id, no, status from orders where id = $1", [r.rows[0].addition_of])).rows[0] ?? null : null;
+  return { order: r.rows[0], lines, activity, needsCeo, customer, additions, additionOf };
 }
 
 // ---------- writes ----------
@@ -218,16 +221,31 @@ function diffLines(before: SLine[], after: SLine[]) {
 
 export async function saveLines(c: PoolClient, who: Caller, id: string, body: Record<string, unknown>) {
   const o = await openForWrite(c, id, body.rev);
-  if (!canEditLines(who.role, o.status)) throw new ApiError(403, "rRole", "Your role can't change items at this stage");
-  const lines = cleanLines(body.lines);
+  if (!canEditItems(who.role, o.status)) throw new ApiError(403, "rRole", "Your role can't change items at this stage");
+  let lines = cleanLines(body.lines);
   const before = await loadLines(c, id);
+  if (who.role === "store") lines = storePrices(lines, before);
   const keep = new Map(before.map(l => [l.k, l])); // check-out/in counts are not editable here; carry them over
   await c.query("delete from order_lines where order_id = $1", [id]);
   if (lines.length) await insertLines(c, id, lines.map(l => { const p = keep.get(l.k); return { ...l, out: p?.out ?? 0, in: p?.in ?? 0, dmg: p?.dmg ?? 0, lost: p?.lost ?? 0, repaired: p?.repaired ?? false }; }));
   const rev = await finish(c, o, who);
   const pending = unapproved(await priceBreaksOf(c, lines), o.price_approval as PriceApproval | null);
   await logActivity(c, who, id, "items", { ...diffLines(before, lines), ...(pending.length && { needsCeo: pending }) });
-  return { id, rev, needsCeo: pending };
+  // A Store addition holds stock as soon as it is saved, so say at once if something is short (it is not refused: the
+  // gear is needed now and Store can see the shelf).
+  const short = o.status === STORE_ADD ? await stockIssues(c, o, lines) : [];
+  return { id, rev, needsCeo: pending, ...(short.length && { short }) };
+}
+
+/** Store adds items only (no crew) and never sets prices: new lines come in at 0 for Sales to price; lines already on
+ *  the job keep the prices they have, whatever the request says. */
+function storePrices(lines: SLine[], before: SLine[]): SLine[] {
+  const had = new Map(before.map(l => [l.k, l]));
+  return lines.map(l => {
+    if (!STORE_ADD_TYPES.includes(l.t)) throw new ApiError(403, "store_items_only", "Store can add items, not crew");
+    const p = had.get(l.k);
+    return { ...l, list: p ? p.list : 0, disc: p ? p.disc : 0, foc: p ? p.foc : false, sb: p ? p.sb : false, ot: p?.ot, otRate: p?.otRate };
+  });
 }
 
 
@@ -252,7 +270,7 @@ async function priceBreaksOf(c: PoolClient, lines: SLine[]): Promise<PriceBreak[
 export async function approvePrices(c: PoolClient, who: Caller, id: string, body: Record<string, unknown>) {
   if (who.role !== "admin") throw new ApiError(403, "rRole", "Only the CEO can confirm special prices");
   const o = await openForWrite(c, id, body.rev);
-  if (!["Quote", "Order", "Approve"].includes(o.status)) throw bad("wrong_status", "Prices are confirmed before shipping");
+  if (!["Quote", "Order", "Approve", STORE_ADD].includes(o.status)) throw bad("wrong_status", "Prices are confirmed before shipping");
   const breaks = await priceBreaksOf(c, await loadLines(c, id));
   if (!unapproved(breaks, o.price_approval as PriceApproval | null).length) throw bad("nothing_to_approve");
   const approval: PriceApproval = { by: who.id, by_name: who.name, at: new Date().toISOString(), breaks };
@@ -269,9 +287,9 @@ async function stockIssues(c: PoolClient, o: OrderRow, lines: Line[]) {
   const pids = Object.keys(need).map(Number); if (!pids.length) return [];
   const stock = new Map<number, number>((await c.query("select id, stock from products where id = any($1::int[])", [pids])).rows.map(r => [r.id, Math.max(0, r.stock)]));
   const others = (await c.query(`select id, status, ship, ret, usage from orders where status = any($1::text[]) and id <> $2
-    and ship <= $3 and (ret >= $4 or status = 'Shipped')`, [BLOCKING, o.id, o.ret, o.ship])).rows.map(r => ({ id: r.id, status: r.status, ship: r.ship, ret: r.ret, usage: r.usage ?? [] }));
+    and ship <= $3 and (ret >= $4 or status = 'Shipped')`, [HOLDING, o.id, o.ret, o.ship])).rows.map(r => ({ id: r.id, status: r.status, ship: r.ship, ret: r.ret, usage: r.usage ?? [] }));
   const today = bangkokToday(); const out = [];
-  for (const pid of pids) { const free = (stock.get(pid) ?? 0) - bookedQty(pid, o.ship, o.ret, others, o.id, today); if (need[pid] > free) out.push({ pid, short: need[pid] - Math.max(0, free) }); }
+  for (const pid of pids) { const free = (stock.get(pid) ?? 0) - bookedQty(pid, o.ship, o.ret, others, o.id, today, HOLDING as never); if (need[pid] > free) out.push({ pid, short: need[pid] - Math.max(0, free) }); }
   return out;
 }
 
@@ -281,7 +299,7 @@ export async function moveOrder(c: PoolClient, who: Caller, id: string, body: Re
   if (![...Object.keys(MOVES), "Draft INV", "Cancel"].includes(to)) throw bad("rFlow", "Unknown status");
   const lines = await loadLines(c, id);
   const issues = await stockIssues(c, o, lines);
-  const why = moveCheck(who.role, toLogicOrder(o), to, lines, issues);
+  const why = moveCheckV2(who.role, toLogicOrder(o), to, lines, issues);
   if (why) throw new ApiError(why === "rRole" ? 403 : 422, why, undefined, why === "rClash" ? { issues } : undefined);
   if (to === "Shipped") { // special prices need the CEO before the gear leaves (Gene, 23 Oct 2026)
     const pending = unapproved(await priceBreaksOf(c, lines), o.price_approval as PriceApproval | null);
@@ -335,6 +353,26 @@ export async function storeCounts(c: PoolClient, who: Caller, id: string, mode: 
   const rev = await finish(c, o, who);
   await logActivity(c, who, id, mode === "out" ? "checkout" : "checkin", { changed });
   return { id, rev };
+}
+
+/** Store addition (Gene, 27 Oct 2026): from a v2 job at Approve, Store (or admin) opens a linked job for urgent items.
+ *  It copies the job's details, starts empty at status Store Add (holding stock as items are added) and logs on both. */
+export async function createStoreAddition(c: PoolClient, who: Caller, id: string) {
+  if (who.role !== "admin" && who.role !== "store") throw new ApiError(403, "rRole");
+  const src = await lockOrder(c, id);
+  if (src.owner === "legacy") throw new ApiError(409, "legacy_read_only", "This job belongs to the old system until cutover");
+  if (src.status !== "Approve") throw bad("wrong_status", "Store additions are made while the job is at Approve");
+  const no: string = (await c.query("select next_order_no() n")).rows[0].n;
+  const keep = ["customer_id", "customer_name", "job_type", "dept", "billing", "phone", "fax", "contact", "contact_phone", "dop", "pm", "gaffer",
+    "key_grip", "sale", "rent_type", "dpw", "tax", "ship", "ret", "use_start", "use_end", "footer_id", "remark_id"];
+  const cols: Record<string, unknown> = { id: no, no, owner: "v2", status: STORE_ADD, addition_of: src.id, job_title: `${src.job_title ?? ""} — Store addition`.trim(),
+    rev: 0, created_by: who.id, created_by_name: who.name, updated_by: who.id, totals: JSON.stringify(orderTotals([], { tax: src.tax })), usage: "[]" };
+  for (const k of keep) cols[k] = src[k];
+  const keys = Object.keys(cols);
+  await c.query(`insert into orders (${keys.join(",")}) values (${keys.map((_, i) => `$${i + 1}`).join(",")})`, keys.map(k => cols[k]));
+  await logActivity(c, who, no, "created", { no, additionOf: src.no });
+  await logActivity(c, who, src.id, "store_addition", { no });
+  return { id: no, no, rev: 0 };
 }
 
 /** Copy a job (legacy or v2) as a new v2 quote: same details and items, counts reset, no price confirmation. */

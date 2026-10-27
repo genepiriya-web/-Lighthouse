@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Shell, api, useApp, stCls, money, fmtD } from "../ui/app";
 
-const OPEN = ["Quote", "Order", "Approve", "Shipped", "Returned"];
+const OPEN = ["Quote", "Order", "Approve", "Store Add", "Shipped", "Returned"];
 const DEPT: Record<number, string> = { 1: "LIGHTING", 2: "GRIP", 3: "GRIP&LIGHTING" };
 interface Row { id: string; no: string; owner: string; status: string; customer_name: string | null; job_title: string | null; job_type: string | null; dept: number | null; ship: string | null; ret: string | null; dop: string | null; totals: { sub: number; extra: number; adj?: number } | null; }
 

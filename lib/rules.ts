@@ -6,7 +6,7 @@
 //   not discountable → no discount at all; maxDisc > 0 → that cap; maxDisc 0 → no cap.
 // Lines without a catalog price to compare against are exempt, as in the Cockpit: package parts (priced by the kit),
 // crew and freelance (priced by crew rates), lines with no product, and FOC/standby lines (priced 0 by design).
-import type { Line, Product, Role, Status } from "./logic";
+import { BLOCKING, MOVES, moveCheck, canEditLines, type Line, type Order, type Product, type Role, type Status } from "./logic";
 
 export interface PriceBreak { k: string; code: string; rule: "below_catalog" | "no_discount" | "over_max_disc"; value: number; limit: number; }
 
@@ -33,3 +33,29 @@ export function unapproved(current: PriceBreak[], approval: PriceApproval | null
 export const canEditHeader = (role: Role | string, s: Status | string) => (role === "admin" && s !== "Draft INV") || (role === "sale" && (s === "Quote" || s === "Order"));
 export const canEditMoney = (role: Role | string, s: Status | string) => s !== "Draft INV" && (role === "admin" || role === "accounting" || (role === "sale" && (s === "Quote" || s === "Order")));
 export const canStore = (role: Role | string) => role === "admin" || role === "store";
+
+// ---------- Store addition (Gene, 27 Oct 2026) ----------
+// Urgent items Store adds to a job at Approve go on a separate job linked to it, status "Store Add": it holds stock at
+// once, carries no prices until Sales sets them, then Sales moves it to Approve and it follows the normal flow.
+// v2's own rule, not the old system's: src/logic.js stays as it is and these wrap it.
+export const STORE_ADD: string = "Store Add";
+/** Statuses that hold stock: logic.js BLOCKING plus Store Add. */
+export const HOLDING: string[] = [...BLOCKING, STORE_ADD];
+/** What Store may add: gear and transport, not crew or freelance. */
+export const STORE_ADD_TYPES = [1, 2, 3, 4, 6];
+export const MOVES_V2: Record<string, string[]> = { ...MOVES, [STORE_ADD]: ["Approve"] };
+export const canEditItems = (role: Role | string, s: Status | string) =>
+  s === STORE_ADD ? role === "admin" || role === "sale" || role === "store" : canEditLines(role as Role, s as Status);
+/** Lines Sales still has to price: not package parts (priced by the kit), FOC or standby. */
+export const unpriced = (lines: Line[]) => lines.filter(l => !l.parent && !l.foc && !l.sb && !(Number(l.list) > 0));
+/** logic.js moveCheck, plus the Store Add step. Returns null when allowed, else a reason key. */
+export function moveCheckV2(role: Role | string, o: Partial<Order> & { status: string }, to: string, lines: Line[], issues: unknown[] | null): string | null {
+  if (o.status !== STORE_ADD) return moveCheck(role as Role, o as Order, to, lines, issues as never);
+  if (to === "Cancel") return role === "admin" || role === "sale" || role === "store" ? null : "rRole";
+  if (to !== "Approve") return "rFlow";
+  if (role !== "admin" && role !== "sale") return "rRole";
+  if (!o.customerName) return "rNeedCust"; if (!o.ship || !o.ret) return "rNeedDates"; if (!lines.length) return "rNeedItems";
+  if (issues && issues.length) return "rClash";
+  if (unpriced(lines).length) return "rNeedPrices";
+  return null;
+}

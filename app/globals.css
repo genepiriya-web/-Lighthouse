@@ -66,7 +66,7 @@ textarea.inp{min-height:70px;resize:vertical}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .chip .n{font-family:var(--f-mono);font-size:11px;opacity:.75}
 .tape{display:inline-block;font-family:var(--f-display);font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase;line-height:1.25;padding:2px 10px 1px;background:var(--tc);color:var(--tf,var(--on-dark));clip-path:polygon(3px 0,100% 0,calc(100% - 3px) 50%,100% 100%,0 100%,3px 50%,0 0);white-space:nowrap}
-.st-Quote{--tc:var(--s-quote)} .st-Order{--tc:var(--s-order)} .st-Approve{--tc:var(--s-approve)} .st-Shipped{--tc:var(--s-shipped)} .st-Returned{--tc:var(--s-returned)} .st-Draft{--tc:var(--s-draft)} .st-Cancel{--tc:var(--s-cancel)}
+.st-Quote{--tc:var(--s-quote)} .st-Order{--tc:var(--s-order)} .st-Approve{--tc:var(--s-approve)} .st-Shipped{--tc:var(--s-shipped)} .st-Returned{--tc:var(--s-returned)} .st-Draft{--tc:var(--s-draft)} .st-Cancel{--tc:var(--s-cancel)} .st-Store{--tc:#B7791F}
 .tag{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:1px dashed var(--muted);color:var(--muted);border-radius:4px;padding:0 5px;white-space:nowrap}
 .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
 table{border-collapse:collapse;width:100%;font-size:13px}

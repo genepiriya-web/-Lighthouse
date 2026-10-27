@@ -136,6 +136,45 @@ test("store flow: check-out before Shipped, check-in before Returned, each step 
   assert.deepEqual([line.out,line.in,line.dmg,line.lost],[1,1,1,0]);
 });
 
+test("store addition (Gene, 27 Oct): Store opens a linked job at Approve; it holds stock at once; Sales prices it, then Approve",{skip},async()=>{
+  const j=ok(await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Urgent job",ship:"2026-11-20",ret:"2026-11-21"}));
+  let r=ok(await api("sale","PUT",`/api/orders/${j.id}/lines`,{rev:0,lines:[{k:"a",t:1,pid:1,code:"M18",list:24000,qty:1,days:2}]})).rev;
+  assert.equal((await api("store","POST",`/api/orders/${j.id}/store-addition`,{})).body.error,"wrong_status","only at Approve");
+  r=ok(await api("sale","POST",`/api/orders/${j.id}/move`,{rev:r,to:"Order"})).rev; r=ok(await api("sale","POST",`/api/orders/${j.id}/move`,{rev:r,to:"Approve"})).rev;
+  for(const who of ["sale","crew","accounting"]) assert.equal((await api(who,"POST",`/api/orders/${j.id}/store-addition`,{})).status,403,who);
+  assert.equal((await api("store","POST","/api/orders/6900001/store-addition",{})).status,409,"not on legacy jobs");
+  const a=ok(await api("store","POST",`/api/orders/${j.id}/store-addition`,{}),"create addition");
+  let d=ok(await api("store","GET",`/api/orders/${a.id}`));
+  assert.deepEqual([d.order.status,d.order.addition_of,d.order.customer_name,d.order.ship,d.order.job_title,d.additionOf.no],["Store Add",j.id,"Synthetic Films","2026-11-20","Urgent job — Store addition",j.no]);
+  assert.deepEqual(ok(await api("sale","GET",`/api/orders/${j.id}`)).additions.map(x=>[x.no,x.status]),[[a.no,"Store Add"]]);
+  assert.ok(ok(await api("sale","GET","/api/orders?status=open")).orders.some(o=>o.no===a.no&&o.addition_of===j.id),"listed with open jobs");
+  // Store adds items but never prices: a price sent by Store is dropped; crew is refused
+  assert.equal((await api("store","PUT",`/api/orders/${a.id}/lines`,{rev:0,lines:[{k:"g",t:5,code:"G01",list:3000,qty:1,days:1}]})).body.error,"store_items_only");
+  const s1=ok(await api("store","PUT",`/api/orders/${a.id}/lines`,{rev:0,lines:[{k:"x",t:1,pid:1,code:"M18",list:24000,qty:1,days:2,disc:10,foc:true}]}),"store adds");
+  assert.equal(s1.short,undefined,"2 in stock: the job holds 1, the addition 1");
+  let line=ok(await api("admin","GET",`/api/orders/${a.id}`)).lines[0]; assert.deepEqual([line.list,line.disc,line.foc,line.qty],[0,0,false,1]);
+  // it holds stock already: another job on the same dates can't confirm the last M18
+  const o=ok(await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Other",ship:"2026-11-21",ret:"2026-11-22"}));
+  ok(await api("sale","PUT",`/api/orders/${o.id}/lines`,{rev:0,lines:[{k:"a",t:1,pid:1,code:"M18",list:24000,qty:1,days:1}]}));
+  const clash=await api("sale","POST",`/api/orders/${o.id}/move`,{rev:1,to:"Order"}); assert.equal(clash.body.error,"rClash"); assert.deepEqual(clash.body.issues,[{pid:1,short:1}]);
+  // Store asking for more than is free is saved but flagged
+  const s2=ok(await api("store","PUT",`/api/orders/${a.id}/lines`,{rev:s1.rev,lines:[{k:"x",t:1,pid:1,code:"M18",qty:2,days:2}]})); assert.deepEqual(s2.short,[{pid:1,short:1}]);
+  r=ok(await api("store","PUT",`/api/orders/${a.id}/lines`,{rev:s2.rev,lines:[{k:"x",t:1,pid:1,code:"M18",qty:1,days:2}]})).rev;
+  // only Sales/admin move it on, and only once every item has a price
+  assert.equal((await api("store","POST",`/api/orders/${a.id}/move`,{rev:r,to:"Approve"})).body.error,"rRole");
+  assert.equal((await api("sale","POST",`/api/orders/${a.id}/move`,{rev:r,to:"Approve"})).body.error,"rNeedPrices");
+  assert.equal((await api("sale","POST",`/api/orders/${a.id}/move`,{rev:r,to:"Shipped"})).body.error,"rFlow");
+  r=ok(await api("sale","PUT",`/api/orders/${a.id}/lines`,{rev:r,lines:[{k:"x",t:1,pid:1,code:"M18",list:24000,qty:1,days:2}]}),"sale prices").rev;
+  r=ok(await api("store","PUT",`/api/orders/${a.id}/lines`,{rev:r,lines:[{k:"x",t:1,pid:1,code:"M18",list:1,qty:1,days:2,remark:"rush"}]})).rev;
+  line=ok(await api("admin","GET",`/api/orders/${a.id}`)).lines[0]; assert.deepEqual([line.list,line.remark],[24000,"rush"],"Store's re-save keeps Sales' price");
+  assert.equal(ok(await api("sale","POST",`/api/orders/${a.id}/move`,{rev:r,to:"Approve"})).status,"Approve");
+  assert.equal((await api("store","PUT",`/api/orders/${a.id}/lines`,{rev:r+1,lines:[]})).status,403,"Store edits only while it is a Store Add");
+  // a second addition can be cancelled by Store
+  const b=ok(await api("store","POST",`/api/orders/${j.id}/store-addition`,{}));
+  assert.equal(ok(await api("store","POST",`/api/orders/${b.id}/move`,{rev:0,to:"Cancel"})).status,"Cancel");
+  assert.ok(ok(await api("admin","GET",`/api/orders/${j.id}`)).activity.filter(x=>x.action==="store_addition").length===2,"logged on the main job");
+});
+
 test("header vs money permissions follow the artifact: accounting edits fees, not job details",{skip},async()=>{
   const j=ok(await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Money job"}));
   ok(await api("sale","PUT",`/api/orders/${j.id}/lines`,{rev:0,lines:[{k:"a",t:2,pid:2,list:150,qty:4,days:1}]}));
