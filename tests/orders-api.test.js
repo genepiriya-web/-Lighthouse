@@ -8,7 +8,7 @@ const {spawn}=require("node:child_process"); const fs=require("fs"), os=require(
 const {Client}=require("pg");
 require("../scripts/env");
 const {migrate}=require("../scripts/migrate"); const {importExport}=require("../scripts/import"); const {writeFixture}=require("./helpers/fixture");
-const L=require("../src/logic.js");
+const L=require("../src/logic.js"); const {orderTotalsV2}=require("../lib/pricing.js");
 
 const ADMIN=process.env.DATABASE_ADMIN_URL; const root=path.join(__dirname,"..");
 const skip=!ADMIN?"no DATABASE_ADMIN_URL — run `npm run db:start`":!fs.existsSync(path.join(root,".next/BUILD_ID"))?"run `npm run build` first":false;
@@ -217,6 +217,9 @@ test("discounts on Equipment only (Gene, 27 Oct): a discount on any other type i
   const d=ok(await api("sale","GET",`/api/orders/${j.id}`));
   assert.deepEqual(d.lines.map(l=>[l.k,l.disc]),[["e",20],["a",0],["g",0],["c",0]]);
   assert.equal(d.order.totals.sub,L.r2(24000*0.8+300+9000+3000));
+  // the extra discount % also comes off Equipment only (Gene, 27 Oct): 10% of 19,200, not of the whole 31,500
+  const e=ok(await api("sale","PATCH",`/api/orders/${j.id}`,{rev:1,extraDisc:10}));
+  const T=ok(await api("sale","GET",`/api/orders/${j.id}`)).order.totals; assert.equal(T.extra,1920); assert.equal(T.total,L.r2((31500-1920)*1.07));
   const cp=ok(await api("sale","POST","/api/orders/6900002/copy",{})); // legacy job: its lines carry no discount, nothing to drop
   assert.ok(ok(await api("sale","GET",`/api/orders/${cp.id}`)).lines.every(l=>l.t===1||!l.disc));
 });
@@ -228,7 +231,8 @@ test("header vs money permissions follow the artifact: accounting edits fees, no
   ok(await api("accounting","PATCH",`/api/orders/${j.id}`,{rev:1,insurance:500,extraDisc:150}));
   const o=ok(await api("admin","GET",`/api/orders/${j.id}`)).order;
   assert.equal(o.extra_disc,100,"extra discount clamps to 100% as on the artifact"); assert.equal(o.totals.ins,500);
-  assert.deepEqual(o.totals,L.orderTotals([{t:2,list:150,qty:4,days:1}],{extraDisc:100,insurance:500,tax:"Vat"}));
+  // v2 job: the extra discount only comes off Equipment (Gene, 27 Oct), and this job has none, so nothing comes off
+  assert.deepEqual(o.totals,orderTotalsV2([{t:2,list:150,qty:4,days:1}],{extraDisc:100,insurance:500,tax:"Vat",owner:"v2"})); assert.equal(o.totals.extra,0);
   assert.equal((await api("crew","PATCH",`/api/orders/${j.id}`,{rev:2,note:"x"})).status,403);
   assert.equal((await api("sale","PATCH",`/api/orders/${j.id}`,{rev:2,totals:{}})).body.error,"unknown_fields");
 });
@@ -314,7 +318,7 @@ test("copy: any job (legacy too) becomes a new v2 quote with counts reset; sale/
   const d=ok(await api("sale","GET",`/api/orders/${c.id}`));
   assert.deepEqual([d.order.owner,d.order.status,d.order.rev,d.order.customer_name,d.order.extra_disc],["v2","Quote",0,"Synthetic Films",5]);
   assert.equal(d.lines.length,2); for(const l of d.lines) assert.deepEqual([l.out,l.in,l.dmg,l.lost,l.repaired],[0,0,0,0,false]);
-  assert.equal(d.order.totals.total,L.orderTotals(d.lines,{extraDisc:5,tax:"Vat"}).total);
+  assert.equal(d.order.totals.total,orderTotalsV2(d.lines,{extraDisc:5,tax:"Vat",owner:"v2"}).total,"the copy is a v2 job, so v2 totals");
   assert.equal(d.activity[0].detail.copiedFrom,"6900001");
   assert.equal(await rev("6900001"),r0,"copying must not touch the legacy job");
 });

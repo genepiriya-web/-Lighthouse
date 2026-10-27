@@ -7,7 +7,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Shell, api, useApp, stCls, money, fmtD } from "../../ui/app";
 import { CustomerPick } from "../../ui/customer-pick";
-import { TYPES, STATUSES, STOCKED_TYPES, orderTotals, typeTotals, lineCalc, chargeDays, defaultDisc, expandKit, syncChildren, type Line } from "../../../lib/logic";
+import { orderTotalsV2 } from "../../../lib/pricing";
+import { TYPES, STATUSES, STOCKED_TYPES, typeTotals, lineCalc, chargeDays, defaultDisc, expandKit, syncChildren, type Line } from "../../../lib/logic";
 import { canEditHeader, canEditMoney, canEditReturn, canStore, STORE_ADD, STORE_ADD_TYPES, MOVES_V2, canEditItems, moveCheckV2, unpriced, TRANSPORT_REMARKS, canDiscount, type PriceBreak } from "../../../lib/rules";
 
 type Any = Record<string, any>;
@@ -71,14 +72,14 @@ function Sheet({ id }: { id: string }) {
     await load(); return r.body;
   };
 
-  const money$ = useMemo(() => o ? { extraDisc: o.extra_disc, insurance: o.insurance, adjust: o.adjust, tax: o.tax } : {}, [o]);
+  const money$ = useMemo(() => o ? { extraDisc: o.extra_disc, insurance: o.insurance, adjust: o.adjust, tax: o.tax, owner: o.owner } : {}, [o]);
   if (!d || !o) return err ? <div className="banner bad">{err}</div> : <div className="empty"><p>{t("loading")}</p></div>;
 
   const editH = !legacy && canEditHeader(role, o.status);
   const editM = !legacy && canEditMoney(role, o.status);
   const editL = !legacy && canEditItems(role, o.status);
   const storeAdd = o.status === STORE_ADD; const noPrice = storeAdd && role === "store"; // Store adds items; Sales prices them
-  const G = orderTotals(lines, money$); const T = typeTotals(lines, tt);
+  const G = orderTotalsV2(lines, money$); const T = typeTotals(lines, tt);
   const logicOrder = { status: o.status, customerName: o.customer_name ?? "", ship: o.ship ?? "", ret: o.ret ?? "" };
   const moves = (MOVES_V2[o.status] ?? []).map(s => { let why: string | null = moveCheckV2(role, logicOrder, s, lines, []); if (!why && s === "Shipped" && d.needsCeo.length) why = "rPriceApproval"; return { s, why }; }).filter(m => m.why !== "rRole");
   const canCancel = !legacy && moveCheckV2(role, logicOrder, "Cancel", lines, []) === null;
@@ -170,10 +171,10 @@ function Sheet({ id }: { id: string }) {
           <div className="totals"><b style={{ gridColumn: "1/-1" }}>{t("t_type", { t: typeLabel(tt) })}</b><span>{t("t_list")}</span><span className="num">฿ {money(T.list)}</span><span>{t("t_disc")}</span><span className="num">฿ {money(T.disc)}</span><span>{t("t_sub")}</span><span className="num">฿ {money(T.sub)}</span></div>
           <div className="totals"><b style={{ gridColumn: "1/-1" }}>{t("t_grand")}</b>
             <span>{t("t_list")}</span><span className="num">฿ {money(G.list)}</span><span>{t("t_disc")}</span><span className="num">฿ {money(G.disc)}</span><span>{t("t_sub")}</span><span className="num">฿ {money(G.sub)}</span>
-            <span>{t("extraDisc")}</span><span>{editM && !dirty ? <input className="inp cell num" type="number" min={0} max={100} step="0.01" defaultValue={o.extra_disc} key={"x" + o.rev} onBlur={e => +e.target.value !== o.extra_disc && run("PATCH", "", { extraDisc: +e.target.value || 0 })} /> : <span className="num">{o.extra_disc}%</span>}</span>
+            <span>{t("extraDisc")}{!legacy && <span className="muted small"> · {t("discEquipOnly")}</span>}</span><span>{editM && !dirty ? <input className="inp cell num" type="number" min={0} max={100} step="0.01" defaultValue={o.extra_disc} key={"x" + o.rev} onBlur={e => +e.target.value !== o.extra_disc && run("PATCH", "", { extraDisc: +e.target.value || 0 })} /> : <span className="num">{o.extra_disc}%</span>}</span>
             {G.extra ? <><span>{t("t_extra")}</span><span className="num">- ฿ {money(G.extra)}</span></> : null}
             <span>{t("adjustTo")}</span><span>{editM && !dirty ? <input className="inp cell num" style={{ width: 110 }} type="number" step="0.01" placeholder={money(G.sub - G.extra)} defaultValue={G.adj ? (G.sub - G.extra + G.adj).toFixed(2) : ""} key={"a" + o.rev}
-              onBlur={e => { const G0 = orderTotals(lines, { ...money$, adjust: 0 }); const v = e.target.value === "" ? 0 : Math.round(((parseFloat(e.target.value) || 0) - (G0.sub - G0.extra)) * 100) / 100; if (v !== o.adjust) run("PATCH", "", { adjust: v }); }} />
+              onBlur={e => { const G0 = orderTotalsV2(lines, { ...money$, adjust: 0 }); const v = e.target.value === "" ? 0 : Math.round(((parseFloat(e.target.value) || 0) - (G0.sub - G0.extra)) * 100) / 100; if (v !== o.adjust) run("PATCH", "", { adjust: v }); }} />
               : <span className="num">{G.adj ? "฿ " + money(G.sub - G.extra + G.adj) : "–"}</span>}</span>
             <span>{t("insurance")}</span><span>{editM && !dirty ? <input className="inp cell num" type="number" min={0} step="0.01" defaultValue={o.insurance} key={"i" + o.rev} onBlur={e => +e.target.value !== o.insurance && run("PATCH", "", { insurance: +e.target.value || 0 })} /> : <span className="num">฿ {money(G.ins)}</span>}</span>
             <span>{t("t_vat")}{o.tax === "Not Vat" ? " (Not Vat)" : ""}</span><span className="num">฿ {money(G.vat)}</span>

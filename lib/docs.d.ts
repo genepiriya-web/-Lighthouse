@@ -1,7 +1,7 @@
 import type { Line } from "../src/logic";
 
 export type DocKind = "quote" | "draft" | "items";
-export interface DocOrder { no: string; rev?: number; customerName?: string | null; billing?: string | null; phone?: string | null; fax?: string | null; contact?: string | null; contactPhone?: string | null;
+export interface DocOrder { owner?: string | null; no: string; rev?: number; customerName?: string | null; billing?: string | null; phone?: string | null; fax?: string | null; contact?: string | null; contactPhone?: string | null;
   jobTitle?: string | null; jobType?: string | null; dept?: number | null; ship?: string | null; ret?: string | null; useStart?: string | null; useEnd?: string | null; dop?: string | null;
   sale?: string | null; tax?: string; extraDisc?: number; insurance?: number; adjust?: number; remarkId?: string | null; footerId?: string | null; }
 export interface DocContext { company?: { name?: string; tax?: string | null; addr?: string | null } | null; remarks?: Array<{ id: string | number; html: string }>; footers?: Array<{ id: string | number; html: string }>; today: string; }

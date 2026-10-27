@@ -11,6 +11,7 @@ import {
   type Line, type Order, type Status,
 } from "../logic";
 import { ApiError, bad } from "./http";
+import { orderTotalsV2 } from "../pricing";
 import { priceBreaks, unapproved, canEditField, canEditMoney, STORE_ADD, HOLDING, STORE_ADD_TYPES, canEditItems, moveCheckV2, DEFAULT_SALES_PEOPLE, canDiscount, type PriceBreak, type PriceApproval } from "../rules";
 import type { Caller } from "./auth";
 
@@ -72,7 +73,7 @@ async function logActivity(c: PoolClient, who: Caller, entityId: string, action:
 async function finish(c: PoolClient, o: OrderRow, who: Caller, patch: Record<string, unknown> = {}): Promise<number> {
   const lines = await loadLines(c, o.id);
   const money = { ...toLogicOrder(o), ...pickMoney(patch) };
-  const cols: Record<string, unknown> = { ...patch, totals: orderTotals(lines, money), usage: usageOf(lines), rev: o.rev + 1, updated_at: new Date().toISOString(), updated_by: who.id };
+  const cols: Record<string, unknown> = { ...patch, totals: orderTotalsV2(lines, { ...money, owner: o.owner }), usage: usageOf(lines), rev: o.rev + 1, updated_at: new Date().toISOString(), updated_by: who.id };
   const keys = Object.keys(cols);
   const r = await c.query(`update orders set ${keys.map((k, i) => `${k} = $${i + 2}`).join(", ")} where id = $1 returning rev`,
     [o.id, ...keys.map(k => (k === "totals" || k === "usage") ? JSON.stringify(cols[k]) : cols[k])]);
@@ -399,7 +400,7 @@ export async function copyOrder(c: PoolClient, who: Caller, id: string) {
     "key_grip", "note", "sale", "rent_type", "dpw", "tax", "ship", "ret", "use_start", "use_end", "footer_id", "remark_id", "extra_disc", "insurance", "adjust"];
   const money = { extraDisc: src.extra_disc, insurance: src.insurance, adjust: src.adjust, tax: src.tax };
   const cols: Record<string, unknown> = { id: no, no, owner: "v2", status: "Quote", rev: 0, created_by: who.id, created_by_name: who.name, updated_by: who.id,
-    totals: JSON.stringify(orderTotals(lines, money)), usage: JSON.stringify(usageOf(lines)) };
+    totals: JSON.stringify(orderTotalsV2(lines, { ...money, owner: "v2" })), usage: JSON.stringify(usageOf(lines)) };
   for (const k of keep) cols[k] = src[k];
   const keys = Object.keys(cols);
   await c.query(`insert into orders (${keys.join(",")}) values (${keys.map((_, i) => `$${i + 1}`).join(",")})`, keys.map(k => cols[k]));
