@@ -34,7 +34,7 @@ function Sheet({ id }: { id: string }) {
   const { t, me } = useApp(); const role = me?.role ?? "none"; const router = useRouter();
   const [d, setD] = useState<Data | null>(null); const [err, setErr] = useState<string>(""); const [stale, setStale] = useState(false);
   const [draft, setDraft] = useState<Array<Line & { k: string }> | null>(null); const [tt, setTt] = useState(1); const [busy, setBusy] = useState(false);
-  const [confirmCancel, setConfirmCancel] = useState(false); const [sales, setSales] = useState<string[]>([]);
+  const [confirmCancel, setConfirmCancel] = useState(false); const [bulkDisc, setBulkDisc] = useState(""); const [sales, setSales] = useState<string[]>([]);
   useEffect(() => { api("GET", "/api/settings").then(r => r.ok && setSales(r.body.sales_people ?? [])); }, []);
 
   const load = useCallback(async () => { const r = await api<Data & { error?: string }>("GET", `/api/orders/${encodeURIComponent(id)}`);
@@ -147,6 +147,13 @@ function Sheet({ id }: { id: string }) {
         {!editL && <div className="muted small">{t("readOnlyItems")}</div>}
         <div className="ttabs" role="tablist">{TYPES.filter(x => !noPrice || STORE_ADD_TYPES.includes(x.id)).map(x => { const n = lines.filter(l => l.t === x.id && !l.parent).length;
           return <button key={x.id} className="ttab" type="button" role="tab" aria-selected={tt === x.id} onClick={() => setTt(x.id)}>{typeLabel(x.id)}{n ? <span className="n">{n}</span> : null}</button>; })}</div>
+        {/* Discount for a whole tab (Gene, 27 Oct): Equipment and Sub-rent each have their own; it fills every priced line in the
+            tab (not package parts, FOC or standby), and any single line can still be changed after. Saved by autosave. */}
+        {editL && !noPrice && canDiscount(tt) && lines.some(l => l.t === tt && !l.parent) && <form className="row small" style={{ gap: 6 }} onSubmit={e => { e.preventDefault();
+          const v = Math.max(0, Math.min(100, parseFloat(bulkDisc) || 0)); setDraft(lines.map(l => l.t === tt && !l.parent && !l.foc && !l.sb ? { ...l, disc: v } : l)); setBulkDisc(""); }}>
+          <span className="muted">{t("tabDisc", { t: typeLabel(tt) })}</span>
+          <input className="inp cell num" type="number" min={0} max={100} step="0.01" required value={bulkDisc} onChange={e => setBulkDisc(e.target.value)} aria-label={t("tabDisc", { t: typeLabel(tt) })} />
+          <span>%</span><button className="btn sm" type="submit">{t("tabDiscApply")}</button></form>}
         <div>
           <div className="lrow head"><span>{t("i_desc")}</span>{noPrice ? <span /> : <span>{t("i_list")}</span>}<span>{t("i_qty")}</span><span>{t("i_days")}</span>{noPrice ? <span /> : <span>{tt === 5 || tt === 7 ? t("i_ot") : t("i_disc")}</span>}<span style={{ textAlign: "right" }}>{noPrice ? "" : t("i_total")}</span><span /></div>
           {lines.filter(l => l.t === tt).map(l => { const child = !!l.parent; const c = lineCalc(l); const crew = l.t === 5 || l.t === 7; const can = editL && !child; const br = breakOf(l.k);

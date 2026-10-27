@@ -67,6 +67,11 @@ test("sale → store → CEO → store: special price blocks shipping until conf
   await page.reload(); await expect(page.locator(".lrow:not(.head)").first().locator("input").nth(1)).toHaveValue("2");
   await page.locator(".lrow:not(.head)").first().locator("input").nth(1).fill("1");
   await expect(page.getByText(/saves itself within 5 seconds/)).toHaveCount(0, { timeout: 9000 });
+  // a discount for the whole Equipment tab (Gene, 27 Oct), then one line changed by hand
+  await page.getByLabel("Discount for all Equipment").fill("10"); await page.getByRole("button", { name: "Apply to every line" }).click();
+  const disc = page.locator(".lrow:not(.head)").first().locator("input").nth(3);
+  await expect(disc).toHaveValue("10"); await noSidewaysScroll(page, "tab discount");
+  await disc.fill("0"); await expect(page.getByText(/saves itself within 5 seconds/)).toHaveCount(0, { timeout: 9000 });
   // transport remark (Gene, 27 Oct): pick-or-type note on a transport line, saved with the items
   await page.getByRole("tab", { name: /Transport/ }).click();
   await page.getByPlaceholder("Search item name").fill("Generator");
