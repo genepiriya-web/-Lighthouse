@@ -1,6 +1,7 @@
 // GET /api/orders/:id/document?kind=quote|draft|items&disc=1|0[&inline=1] — the job's printout as an HTML file (any staff),
 // the same document the artifact page downloaded. `inline=1` returns it for the on-screen preview instead of a download.
-// `format=pdf` (quotation only): a PDF in the company's paper-form layout (lib/server/quotepdf.ts).
+// `format=pdf` (quotation only): a PDF in the company's paper-form layout (lib/server/quotepdf.ts); there `disc=net` hides
+// the discount (net prices, same totals).
 import { ApiError, handle } from "../../../../../lib/server/http";
 import { requireStaff } from "../../../../../lib/server/auth";
 import { tx } from "../../../../../lib/server/db";
@@ -15,10 +16,11 @@ const bangkokToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "A
 export const GET = handle(async (req: Request, { params }: Ctx) => {
   const { id } = await params; const u = new URL(req.url);
   const kind = (u.searchParams.get("kind") || "quote") as DocKind; if (!["quote", "draft", "items"].includes(kind)) throw new ApiError(422, "bad_kind");
-  const disc = u.searchParams.get("disc") !== "0";
+  const d = u.searchParams.get("disc"); const disc = d !== "0";
   if (u.searchParams.get("format") === "pdf") {
     if (kind !== "quote") throw new ApiError(422, "bad_kind"); // only the quotation has the paper-form layout so far
-    const f = await tx(async c => quoteFormFor(c, await requireStaff(c, req), id, disc));
+    const view = d === "net" ? "net" : disc ? "disc" : "list";
+    const f = await tx(async c => quoteFormFor(c, await requireStaff(c, req), id, view));
     return new Response(new Uint8Array(await render(f)), { headers: {
       "content-type": "application/pdf",
       "content-disposition": `${u.searchParams.get("inline") === "1" ? "inline" : "attachment"}; filename="${f.name}"`,

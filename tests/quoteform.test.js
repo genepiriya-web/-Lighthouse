@@ -27,6 +27,18 @@ test("without discount: list prices plus insurance, VAT on that, exactly as lib/
   assert.ok(!h.includes("Disc%"),"no discount columns");
 });
 
+test("hide discount (net, Gene 27 Oct): no discount shown anywhere in the detail; net unit prices; same totals as with discount",()=>{
+  const h=Q.quoteForm(order,lines,"net",x); const G=L.orderTotals(lines,order); const det=h.slice(h.indexOf("<table class=\"det\""));
+  for(const w of ["Disc%","Discount:","Amount:",">Discount<","List Price"]) assert.ok(!det.includes(w),`net view shows ${w}`);
+  assert.ok(h.includes(`${fmt(G.total)} Baht`)&&h.includes(`${fmt(G.vat)} Baht`),"same VAT and grand total as with discount");
+  for(const ty of L.TYPES) assert.ok(h.includes(fmt(L.typeTotals(lines,ty.id).sub)));
+  assert.ok(det.includes(">3,300.00<"),"Sky Panel 22,000 at 85% off shows as 3,300.00 a day");
+  assert.ok(det.includes(">2,700.00<")&&det.includes(">450.00<"),"crew day rate and OT rate after the crew line's 10%");
+  const sb=Q.quoteForm(order,[{k:"s",t:1,desc:"Sky Panel SET",list:22000,qty:1,days:2,disc:85,sb:true}],"net",x);
+  assert.ok(sb.includes("Price : 3,300.00")&&!sb.includes("22,000"),"a standby line's price is net too, so the full price never shows");
+  assert.equal(Q.pdfName(order,"net"),"6909001-016-quotation-net.pdf");
+});
+
 test("paper-form details: standby rows, package parts unnumbered, crew name/position, Not Vat",()=>{
   const h=Q.quoteForm(order,lines,true,x);
   assert.ok(h.includes("StandBy : 1<br>Price : 22,000.00")); assert.ok(h.includes(">Stand By<"));

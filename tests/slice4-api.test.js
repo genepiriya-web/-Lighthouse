@@ -42,6 +42,8 @@ test("quotation PDF (paper form): any staff, a real PDF with the order's revisio
   const b=Buffer.from(await r.arrayBuffer()); assert.equal(b.subarray(0,5).toString(),"%PDF-"); assert.ok(b.length>5000);
   const nod=await fetch("http://127.0.0.1:3924/api/orders/6900001/document?disc=0&format=pdf&inline=1",{headers:{"x-dev-user":S.uid.store}});
   assert.match(nod.headers.get("content-disposition"),/^inline; filename="6900001-\d{3}-quotation-nodisc\.pdf"$/); await nod.arrayBuffer();
+  const net=await fetch("http://127.0.0.1:3924/api/orders/6900001/document?disc=net&format=pdf",{headers:{"x-dev-user":S.uid.sale}});
+  assert.match(net.headers.get("content-disposition"),/filename="6900001-\d{3}-quotation-net\.pdf"$/); assert.equal(Buffer.from(await net.arrayBuffer()).subarray(0,5).toString(),"%PDF-");
   assert.equal((await raw("store","/api/orders/6900001/document?kind=items&format=pdf")).status,422);
   assert.equal((await raw("store","/api/orders/nope/document?format=pdf")).status,404);
 });

@@ -8,7 +8,7 @@ import type { Caller } from "./auth";
 import { getOrder } from "./orders";
 import { getSettings } from "./master";
 import { fromRow } from "../docs";
-import { quoteForm, pdfName } from "../quoteform";
+import { quoteForm, pdfName, type QuoteView } from "../quoteform";
 import { htmlToPdf } from "./pdf";
 
 let logoCache: string | null | undefined;
@@ -24,11 +24,11 @@ function logo(): string | null {
 const bangkokNow = () => new Date().toLocaleString("en-GB", { timeZone: "Asia/Bangkok", hour12: false }).replace(",", "");
 
 /** Reads inside the caller's transaction; the PDF itself is drawn after, outside it (`render`). */
-export async function quoteFormFor(c: PoolClient, who: Caller, id: string, disc: boolean) {
+export async function quoteFormFor(c: PoolClient, who: Caller, id: string, view: QuoteView) {
   const { order, lines } = await getOrder(c, id); const s = await getSettings(c); const o = fromRow(order);
   const code = order.customer_id ? (await c.query("select code from customers where id = $1", [order.customer_id])).rows[0]?.code ?? null : null;
-  const html = quoteForm(o, lines, disc, { company: s.company, remarks: s.remarks, footers: s.footers, printedAt: bangkokNow(), printedBy: who.name, customerCode: code, logo: logo() });
-  return { html, name: pdfName(o, disc), label: `${o.no}-${String(o.rev || 0).padStart(3, "0")}` };
+  const html = quoteForm(o, lines, view, { company: s.company, remarks: s.remarks, footers: s.footers, printedAt: bangkokNow(), printedBy: who.name, customerCode: code, logo: logo() });
+  return { html, name: pdfName(o, view), label: `${o.no}-${String(o.rev || 0).padStart(3, "0")}` };
 }
 
 export const render = (f: { html: string; label: string }) => htmlToPdf(f.html, f.label);
