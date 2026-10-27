@@ -11,7 +11,7 @@ import {
   type Line, type Order, type Status,
 } from "../logic";
 import { ApiError, bad } from "./http";
-import { priceBreaks, unapproved, canEditField, canEditMoney, STORE_ADD, HOLDING, STORE_ADD_TYPES, canEditItems, moveCheckV2, DEFAULT_SALES_PEOPLE, type PriceBreak, type PriceApproval } from "../rules";
+import { priceBreaks, unapproved, canEditField, canEditMoney, STORE_ADD, HOLDING, STORE_ADD_TYPES, canEditItems, moveCheckV2, DEFAULT_SALES_PEOPLE, canDiscount, type PriceBreak, type PriceApproval } from "../rules";
 import type { Caller } from "./auth";
 
 // ---------- shapes ----------
@@ -208,7 +208,7 @@ function cleanLines(input: unknown): SLine[] {
     for (const f of LINE_NUM) { const v = l[f]; if (v === undefined || v === null || v === "") { n[f] = f === "ot" || f === "otRate" || f === "ratio" ? null : 0; continue; }
       const x = Number(v); if (!isFinite(x) || x < 0) throw bad("bad_line_number", `line ${i + 1} ${f}`); n[f] = x; }
     // Same normalisation as the artifact's item table: whole quantities, half days, discount 0–100.
-    n.qty = Math.round(n.qty as number); n.days = Math.round((n.days as number) * 2) / 2; n.disc = Math.min(100, n.disc as number);
+    n.qty = Math.round(n.qty as number); n.days = Math.round((n.days as number) * 2) / 2; n.disc = canDiscount(t) ? Math.min(100, n.disc as number) : 0; // Equipment only (Gene, 27 Oct)
     for (const d of ["start", "end"] as const) if (l[d] != null && l[d] !== "" && !isDate(l[d])) throw bad("bad_date", `line ${i + 1} ${d}`);
     return { k, t, pid: l.pid == null || l.pid === "" ? null : Number(l.pid), code: l.code == null ? "" : String(l.code).slice(0, 100),
       desc: l.desc == null ? "" : String(l.desc).slice(0, 500), list: n.list as number, qty: n.qty as number, days: n.days as number, disc: n.disc as number,
@@ -393,7 +393,7 @@ export async function copyOrder(c: PoolClient, who: Caller, id: string) {
   if (who.role !== "admin" && who.role !== "sale") throw new ApiError(403, "rRole");
   const src = (await c.query("select * from orders where id = $1", [id])).rows[0];
   if (!src) throw new ApiError(404, "not_found");
-  const lines = (await loadLines(c, id)).map(l => ({ ...l, out: 0, in: 0, dmg: 0, lost: 0, repaired: false }));
+  const lines = (await loadLines(c, id)).map(l => ({ ...l, disc: canDiscount(l.t) ? l.disc : 0, out: 0, in: 0, dmg: 0, lost: 0, repaired: false }));
   const no: string = (await c.query("select next_order_no() n")).rows[0].n;
   const keep = ["customer_id", "customer_name", "job_title", "job_type", "dept", "billing", "phone", "fax", "contact", "contact_phone", "dop", "pm", "gaffer",
     "key_grip", "note", "sale", "rent_type", "dpw", "tax", "ship", "ret", "use_start", "use_end", "footer_id", "remark_id", "extra_disc", "insurance", "adjust"];

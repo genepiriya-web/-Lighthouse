@@ -363,6 +363,8 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
       - Do tax invoices and invoices come out of Express today?
       - What does Accounting key into Express for each rental job?
     - The web search found no official Express API documentation. Unconfirmed.
+40. **Discounts on Equipment only (Q40), Gene, 27 Oct 2026:** line discounts are allowed on Equipment lines only; any other type is saved at 0 (server rule, `canDiscount` in lib/rules.ts), copies drop them too, and the customer's default discount is applied to Equipment only. logic.js is unchanged, so old-system jobs keep the discounts they had (they are read-only). Open:
+    - The order-level **extra discount %** still applies to the whole sub total (logic.js `orderTotals`). Should it apply to Equipment only too? That changes the totals formula, so it waits for Gene's answer.
 39. **Store addition (Q39), Gene, 27 Oct 2026:** separate linked job; Store can add at Approve only; no prices until Sales sets them; holds stock at once. Built that way. Open:
     - **Billing, decided by Gene on 27 Oct: each Store addition is its own invoice** (its own Draft INV), as built.
     - Should the main job show its additions' total next to its own?

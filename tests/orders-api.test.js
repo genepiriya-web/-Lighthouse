@@ -209,6 +209,18 @@ test("dates (Gene, 27 Oct): Store moves the return date from Quote up to Shipped
   assert.equal((await api("store","PATCH",`/api/orders/${j.id}`,{rev:r,ret:"2026-11-01"})).body.error,"badDates");
 });
 
+test("discounts on Equipment only (Gene, 27 Oct): a discount on any other type is saved as 0; copies drop them too",{skip},async()=>{
+  const j=ok(await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Disc job"}));
+  const lines=[{k:"e",t:1,pid:1,code:"M18",list:24000,qty:1,days:1,disc:20},{k:"a",t:2,pid:2,code:"CG",list:150,qty:2,days:1,disc:50},
+    {k:"g",t:4,pid:3,code:"GEN",list:9000,qty:1,days:1,disc:10},{k:"c",t:5,code:"G01",list:3000,qty:1,days:1,disc:30}];
+  ok(await api("sale","PUT",`/api/orders/${j.id}/lines`,{rev:0,lines}));
+  const d=ok(await api("sale","GET",`/api/orders/${j.id}`));
+  assert.deepEqual(d.lines.map(l=>[l.k,l.disc]),[["e",20],["a",0],["g",0],["c",0]]);
+  assert.equal(d.order.totals.sub,L.r2(24000*0.8+300+9000+3000));
+  const cp=ok(await api("sale","POST","/api/orders/6900002/copy",{})); // legacy job: its lines carry no discount, nothing to drop
+  assert.ok(ok(await api("sale","GET",`/api/orders/${cp.id}`)).lines.every(l=>l.t===1||!l.disc));
+});
+
 test("header vs money permissions follow the artifact: accounting edits fees, not job details",{skip},async()=>{
   const j=ok(await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Money job"}));
   ok(await api("sale","PUT",`/api/orders/${j.id}/lines`,{rev:0,lines:[{k:"a",t:2,pid:2,list:150,qty:4,days:1}]}));
@@ -224,8 +236,9 @@ test("header vs money permissions follow the artifact: accounting edits fees, no
 test("special prices (Gene, 23 Oct): sales may set them, but the CEO must confirm before Shipped",{skip},async()=>{
   // Fixture catalog: M18 (1) ฿24,000, discountable, no cap, stock 2 · CG (2) ฿150, not discountable · GEN (3) ฿9,000, max 20%, stock 1.
   const j=ok(await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Special price job",ship:"2026-12-20",ret:"2026-12-21"}));
-  const lines=[{k:"a",t:1,pid:1,code:"M18",list:20000,qty:1,days:1},{k:"b",t:2,pid:2,code:"CG",list:150,qty:4,days:1,disc:5},
-    {k:"c",t:4,pid:3,code:"GEN",list:9000,qty:1,days:1,disc:25},{k:"p",t:2,pid:2,code:"CG",list:0,qty:4,days:1,parent:"c"},
+  // Discounts are on Equipment lines only (Gene, 27 Oct), so the discount cases use type 1.
+  const lines=[{k:"a",t:1,pid:1,code:"M18",list:20000,qty:1,days:1},{k:"b",t:1,pid:2,code:"CG",list:150,qty:4,days:1,disc:5},
+    {k:"c",t:1,pid:3,code:"GEN",list:9000,qty:1,days:1,disc:25},{k:"p",t:1,pid:2,code:"CG",list:0,qty:4,days:1,parent:"c"},
     {k:"f",t:2,pid:2,code:"CG",list:150,qty:1,days:1,foc:true},{k:"g",t:5,code:"G01",list:1,qty:1,days:1,crewId:"500"}];
   let s=ok(await api("sale","PUT",`/api/orders/${j.id}/lines`,{rev:0,lines}),"sale saves special prices");
   assert.deepEqual(s.needsCeo.map(b=>[b.k,b.rule,b.value,b.limit]),[["a","below_catalog",20000,24000],["b","no_discount",5,0],["c","over_max_disc",25,20]]);

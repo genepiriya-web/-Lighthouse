@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { Shell, api, useApp, stCls, money, fmtD } from "../../ui/app";
 import { CustomerPick } from "../../ui/customer-pick";
 import { TYPES, STATUSES, STOCKED_TYPES, orderTotals, typeTotals, lineCalc, chargeDays, defaultDisc, expandKit, syncChildren, type Line } from "../../../lib/logic";
-import { canEditHeader, canEditMoney, canEditReturn, canStore, STORE_ADD, STORE_ADD_TYPES, MOVES_V2, canEditItems, moveCheckV2, unpriced, TRANSPORT_REMARKS, type PriceBreak } from "../../../lib/rules";
+import { canEditHeader, canEditMoney, canEditReturn, canStore, STORE_ADD, STORE_ADD_TYPES, MOVES_V2, canEditItems, moveCheckV2, unpriced, TRANSPORT_REMARKS, canDiscount, type PriceBreak } from "../../../lib/rules";
 
 type Any = Record<string, any>;
 interface Data { order: Any; lines: Array<Line & { k: string }>; activity: Any[]; needsCeo: PriceBreak[]; customer: { id: string; name: string; default_disc: number } | null;
@@ -150,7 +150,7 @@ function Sheet({ id }: { id: string }) {
           <div className="lrow head"><span>{t("i_desc")}</span>{noPrice ? <span /> : <span>{t("i_list")}</span>}<span>{t("i_qty")}</span><span>{t("i_days")}</span>{noPrice ? <span /> : <span>{tt === 5 || tt === 7 ? t("i_ot") : t("i_disc")}</span>}<span style={{ textAlign: "right" }}>{noPrice ? "" : t("i_total")}</span><span /></div>
           {lines.filter(l => l.t === tt).map(l => { const child = !!l.parent; const c = lineCalc(l); const crew = l.t === 5 || l.t === 7; const can = editL && !child; const br = breakOf(l.k);
             const num = (f: keyof Line, step = "1") => <label><span className="lbl">{t(f === "list" ? "i_list" : f === "qty" ? "i_qty" : f === "days" ? "i_days" : f === "ot" ? "i_ot" : "i_disc")}</span>
-              <input className="inp cell num" type="number" min={0} step={step} disabled={!can} value={String(l[f] ?? 0)} onChange={e => setLine(l.k, { [f]: Math.max(0, parseFloat(e.target.value) || 0) } as Partial<Line>)} /></label>;
+              <input className="inp cell num" type="number" min={0} step={step} disabled={!can || (f === "disc" && !canDiscount(l.t))} title={f === "disc" && !canDiscount(l.t) ? t("discEquipOnly") : undefined} value={String(l[f] ?? 0)} onChange={e => setLine(l.k, { [f]: Math.max(0, parseFloat(e.target.value) || 0) } as Partial<Line>)} /></label>;
             return <div key={l.k} className={`lrow ${child ? "child" : ""}`} style={br.length ? { background: "color-mix(in srgb,var(--warn) 10%,transparent)" } : undefined}>
               <span className="desc">{l.desc || l.code}{crew && l.otRate ? <span className="muted small"> · {t("otPerHr", { r: "฿" + money(+l.otRate) })}</span> : null}{l.foc ? <span className="tag"> FOC</span> : null}{l.sb ? <span className="tag"> SB</span> : null}{child ? <span className="muted small"> · {t("kitOf")}</span> : null}</span>
               {noPrice ? <span /> : num("list", "0.01")}{num("qty")}{num("days", "0.5")}{noPrice ? <span /> : crew ? num("ot", "0.5") : num("disc", "0.01")}
@@ -210,7 +210,7 @@ function AddItem({ tt, order, customer, noPrice, onAdd }: { tt: number; order: A
   const add = (p: Any) => {
     const start = order.use_start || order.ship, end = order.use_end || order.ret;
     const parent: Line & { k: string } = { k: uid(), t: p.type, pid: p.id, code: p.code, desc: p.desc, list: +p.price || 0, qty: 1, days: chargeDays(start, end, order.rent_type, order.dpw) || 1,
-      disc: defaultDisc({ discountable: p.discountable, maxDisc: p.maxDisc }, customer?.default_disc ?? 0), foc: false, sb: false, start, end, parent: null, remark: "" };
+      disc: canDiscount(p.type) ? defaultDisc({ discountable: p.discountable, maxDisc: p.maxDisc }, customer?.default_disc ?? 0) : 0, foc: false, sb: false, start, end, parent: null, remark: "" };
     const cat = new Map<number, { code: string; desc: string }>((p.kitProducts ?? []).map((x: Any) => [x.id, { code: x.code, desc: x.desc }]));
     onAdd([parent, ...expandKit(parent, p.kit ?? [], cat, uid) as Array<Line & { k: string }>]); setQ(""); setHits([]);
   };

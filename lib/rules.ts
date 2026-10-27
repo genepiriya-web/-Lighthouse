@@ -74,3 +74,9 @@ export const canEditField = (role: Role | string, s: Status | string, k: string)
 // ---------- Transport remarks (Gene, 27 Oct 2026) ----------
 // Ready-made notes for transport lines; free text is allowed too. Printed in the quotation's Remark column.
 export const TRANSPORT_REMARKS = ["ค่าน้ำมัน ทางด่วน เก็บสด", "ชั่วโมงน้ำมันเครื่องปั่นไม่คิด", "จัดทดแทน"];
+
+// ---------- Discounts on Equipment only (Gene, 27 Oct 2026) ----------
+// Only Equipment lines (type 1) take a line discount; every other type is charged in full. A v2 rule enforced when lines
+// are saved: src/logic.js still prices any discount it is given, so old-system jobs keep the discounts they were made with.
+export const DISCOUNT_TYPES = [1];
+export const canDiscount = (t: number) => DISCOUNT_TYPES.includes(Number(t));
