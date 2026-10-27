@@ -2,7 +2,7 @@
 // Job sheet: details, items, totals, status moves, CEO price confirmation, check-out/in and history.
 // Mirrors the artifact's order sheet. The buttons shown follow the same rules the server enforces (logic.js + lib/rules.ts);
 // the server stays the authority and its refusals are shown as they come back.
-import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Shell, api, useApp, stCls, money, fmtD } from "../../ui/app";
@@ -39,6 +39,26 @@ function Sheet({ id }: { id: string }) {
   const load = useCallback(async () => { const r = await api<Data & { error?: string }>("GET", `/api/orders/${encodeURIComponent(id)}`);
     if (r.ok) { setD(r.body); setDraft(null); setStale(false); setErr(""); } else setErr(t(r.body?.error ?? "error")); }, [id, t]);
   useEffect(() => { load(); }, [load]);
+
+  // Autosave (Gene, 27 Oct): while the item list has unsaved changes, save it every 5 seconds. Changes typed while a save
+  // is on its way stay in the draft and go out with the next one. A refusal (stale, role, bad value) stops autosave until
+  // the next edit, so it never retries the same failing save in a loop.
+  const dRef = useRef(d); dRef.current = d; const draftRef = useRef(draft); draftRef.current = draft;
+  const saving = useRef(false); const [autoOff, setAutoOff] = useState(false); const [savedAt, setSavedAt] = useState("");
+  const saveDraft = useCallback(async () => {
+    const snap = draftRef.current, cur = dRef.current; if (!snap || !cur || saving.current) return;
+    saving.current = true;
+    const r = await api<Any>("PUT", `/api/orders/${encodeURIComponent(id)}/lines`, { rev: cur.order.rev, lines: snap });
+    if (!r.ok) { saving.current = false; setAutoOff(true);
+      if (r.status === 409 && r.body?.error === "stale") setStale(true); else setErr(t(r.body?.error ?? "error") + (r.body?.message && t(r.body.error) === r.body.error ? ` ${r.body.message}` : "")); return; }
+    const g = await api<Data>("GET", `/api/orders/${encodeURIComponent(id)}`); saving.current = false;
+    if (g.ok) { setD(g.body); if (draftRef.current === snap) setDraft(null); }
+    setSavedAt(new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+    if (r.body?.short?.length) setErr(`${t("storeShort")} ${r.body.short.map((x: Any) => `${snap.find(l => l.pid === x.pid)?.desc ?? "#" + x.pid} −${x.short}`).join(", ")}`);
+  }, [id, t]);
+  useEffect(() => { setAutoOff(false); }, [draft]);
+  useEffect(() => { if (draft === null || autoOff) return; const h = setInterval(saveDraft, 5000); return () => clearInterval(h); }, [draft === null, autoOff, saveDraft]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (draft === null) return; const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); }; addEventListener("beforeunload", warn); return () => removeEventListener("beforeunload", warn); }, [draft === null]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const o = d?.order; const lines = draft ?? d?.lines ?? [];
   const legacy = o?.owner === "legacy";
@@ -139,9 +159,9 @@ function Sheet({ id }: { id: string }) {
             </div>; })}
         </div>
         {editL && <AddItem tt={tt} order={o} customer={d.customer} noPrice={noPrice} onAdd={add => setDraft([...lines, ...add])} />}
-        {dirty && <div className="row"><button className="btn primary" type="button" disabled={busy} onClick={async () => { const r = await run("PUT", "/lines", { lines: draft }); if (r) setDraft(null);
-          if (r?.short) setErr(`${t("storeShort")} ${r.short.map((x: Any) => `${lines.find(l => l.pid === x.pid)?.code ?? "#" + x.pid} −${x.short}`).join(", ")}`); }}>{t("saveItems")}</button>
-          <button className="btn" type="button" onClick={() => setDraft(null)}>{t("cancel")}</button><span className="warn small">{t("unsaved")}</span></div>}
+        {dirty && <div className="row"><button className="btn primary" type="button" disabled={busy} onClick={saveDraft}>{t("saveItems")}</button>
+          <button className="btn" type="button" onClick={() => setDraft(null)}>{t("cancel")}</button><span className="warn small">{autoOff ? t("unsaved") : t("autoSaving")}</span></div>}
+        {!dirty && savedAt && editL && <div className="muted small">{t("autoSaved", { t: savedAt })}</div>}
         {!noPrice && <div className="cols2">
           <div className="totals"><b style={{ gridColumn: "1/-1" }}>{t("t_type", { t: typeLabel(tt) })}</b><span>{t("t_list")}</span><span className="num">฿ {money(T.list)}</span><span>{t("t_disc")}</span><span className="num">฿ {money(T.disc)}</span><span>{t("t_sub")}</span><span className="num">฿ {money(T.sub)}</span></div>
           <div className="totals"><b style={{ gridColumn: "1/-1" }}>{t("t_grand")}</b>

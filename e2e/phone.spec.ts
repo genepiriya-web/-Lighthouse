@@ -59,6 +59,14 @@ test("sale → store → CEO → store: special price blocks shipping until conf
   await price.fill("20000");
   await page.getByRole("button", { name: "Save items" }).click();
   await expect(page.getByText("Special prices need the CEO before shipping")).toBeVisible();
+  // autosave (Gene, 27 Oct): an edit saves itself within 5 seconds, no button
+  const qty = page.locator(".lrow:not(.head)").first().locator("input").nth(1);
+  await qty.fill("2"); await expect(page.getByText(/saves itself within 5 seconds/)).toBeVisible();
+  await expect(page.getByText(/saves itself within 5 seconds/)).toHaveCount(0, { timeout: 9000 });
+  await expect(page.getByText(/^Saved \d\d:\d\d:\d\d$/)).toBeVisible();
+  await page.reload(); await expect(page.locator(".lrow:not(.head)").first().locator("input").nth(1)).toHaveValue("2");
+  await page.locator(".lrow:not(.head)").first().locator("input").nth(1).fill("1");
+  await expect(page.getByText(/saves itself within 5 seconds/)).toHaveCount(0, { timeout: 9000 });
   await noSidewaysScroll(page, "job sheet (items)");
 
   await page.getByRole("button", { name: "Move to Order" }).click();
