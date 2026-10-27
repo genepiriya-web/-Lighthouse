@@ -10,7 +10,8 @@ function NewJob() {
   const { t } = useApp(); const router = useRouter();
   const [f, setF] = useState<Record<string, string>>({ rentType: "Daily", tax: "Vat", ship: today(), ret: today() });
   const [cq, setCq] = useState(""); const [hits, setHits] = useState<Array<{ id: string; name: string; code: string | null; flaggedNew: boolean }>>([]);
-  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false); const [sales, setSales] = useState<string[]>([]);
+  useEffect(() => { api("GET", "/api/settings").then(r => r.ok && setSales(r.body.sales_people ?? [])); }, []);
   useEffect(() => { if (cq.trim().length < 2 || f.customerName === cq) { setHits([]); return; }
     const h = setTimeout(() => api("GET", `/api/customers?q=${encodeURIComponent(cq.trim())}`).then(r => r.ok && setHits(r.body.customers)), 200); return () => clearTimeout(h); }, [cq, f.customerName]);
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
@@ -40,7 +41,7 @@ function NewJob() {
           {f.rentType === "Weekly" && <label className="field"><span>{t("h_dpw")}</span><input className="inp" type="number" min={0} max={7} value={f.dpw ?? ""} onChange={set("dpw")} /></label>}
           <label className="field"><span>{t("h_tax")}</span><select className="inp" value={f.tax} onChange={set("tax")}><option>Vat</option><option>Not Vat</option></select></label>
           <label className="field"><span>{t("h_dop")}</span><input className="inp" value={f.dop ?? ""} onChange={set("dop")} /></label>
-          <label className="field"><span>{t("h_sale")}</span><input className="inp" value={f.sale ?? ""} onChange={set("sale")} /></label>
+          <label className="field"><span>{t("h_sale")}</span><select className="inp" value={f.sale ?? ""} onChange={set("sale")}><option value="">{t("pick")}</option>{sales.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
         </div>
         {err && <div className="banner bad">{err}</div>}
         <div className="row"><button className="btn primary" type="submit" disabled={busy}>{t("create")}</button><button className="btn" type="button" onClick={() => router.push("/jobs")}>{t("cancel")}</button></div>

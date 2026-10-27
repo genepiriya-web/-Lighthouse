@@ -3,6 +3,7 @@
 // someone saved first) and written to `activity` with before/after values.
 // Editing a legacy record moves it to source 'v2' so the importer stops overwriting it.
 import "server-only";
+import { DEFAULT_SALES_PEOPLE } from "../rules";
 import type { PoolClient } from "pg";
 import { ApiError, bad } from "./http";
 import type { Caller } from "./auth";
@@ -218,7 +219,7 @@ export async function updateStaff(c: PoolClient, who: Caller, id: string, b: Rec
 // ---------- settings ----------
 export async function getSettings(c: PoolClient) {
   const rows = (await c.query("select key, value, updated_at from settings")).rows;
-  return Object.fromEntries(rows.map(r => [r.key, r.value]));
+  return { sales_people: DEFAULT_SALES_PEOPLE, ...Object.fromEntries(rows.map(r => [r.key, r.value])) };
 }
 export async function updateCompany(c: PoolClient, who: Caller, b: Record<string, unknown>) {
   need(who, "admin");

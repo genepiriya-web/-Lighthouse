@@ -19,7 +19,7 @@ const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(
 const HEADER: Array<[string, string, "text" | "date" | "select" | "area", string[]?]> = [
   ["h_title", "jobTitle", "text"], ["h_cust", "customerName", "text"], ["h_dop", "dop", "text"], ["h_jt", "jobType", "select", ["", "CO-PRO", "FILM", "SP", "TVC", "TVD"]],
   ["h_dept", "dept", "select", ["", "1", "2", "3"]], ["h_ship", "ship", "date"], ["h_ret", "ret", "date"], ["h_us", "useStart", "date"], ["h_ue", "useEnd", "date"],
-  ["h_type", "rentType", "select", ["Daily", "Weekly"]], ["h_dpw", "dpw", "text"], ["h_tax", "tax", "select", ["Vat", "Not Vat"]], ["h_sale", "sale", "text"],
+  ["h_type", "rentType", "select", ["Daily", "Weekly"]], ["h_dpw", "dpw", "text"], ["h_tax", "tax", "select", ["Vat", "Not Vat"]], ["h_sale", "sale", "select", []],
   ["h_bill", "billing", "text"], ["h_phone", "phone", "text"], ["h_contact", "contact", "text"], ["h_cphone", "contactPhone", "text"],
   ["h_pm", "pm", "text"], ["h_gf", "gaffer", "text"], ["h_kg", "keyGrip", "text"], ["h_note", "note", "area"],
 ];
@@ -32,7 +32,8 @@ function Sheet({ id }: { id: string }) {
   const { t, me } = useApp(); const role = me?.role ?? "none"; const router = useRouter();
   const [d, setD] = useState<Data | null>(null); const [err, setErr] = useState<string>(""); const [stale, setStale] = useState(false);
   const [draft, setDraft] = useState<Array<Line & { k: string }> | null>(null); const [tt, setTt] = useState(1); const [busy, setBusy] = useState(false);
-  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false); const [sales, setSales] = useState<string[]>([]);
+  useEffect(() => { api("GET", "/api/settings").then(r => r.ok && setSales(r.body.sales_people ?? [])); }, []);
 
   const load = useCallback(async () => { const r = await api<Data & { error?: string }>("GET", `/api/orders/${encodeURIComponent(id)}`);
     if (r.ok) { setD(r.body); setDraft(null); setStale(false); setErr(""); } else setErr(t(r.body?.error ?? "error")); }, [id, t]);
@@ -105,7 +106,9 @@ function Sheet({ id }: { id: string }) {
       <details className="sec" open={d.lines.length === 0} key={d.lines.length === 0 ? "open" : "closed"}>
         <summary><h3>{t("orderT")}<small>{t("created")} {fmtD(o.created_at)} · {o.created_by_name}</small></h3></summary>
         <div className="grid">{HEADER.map(([label, k, kind, opts]) => {
-          const v = String(o[col(k)] ?? ""); const dis = !editH; const span = ["jobTitle", "customerName", "billing"].includes(k) ? "field span2" : kind === "area" ? "field spanall" : "field";
+          const v = String(o[col(k)] ?? ""); const dis = !editH;
+          if (k === "sale") opts = ["", ...sales, ...(v && !sales.includes(v) ? [v] : [])]; // a job keeps an older name it already has
+          const span = ["jobTitle", "customerName", "billing"].includes(k) ? "field span2" : kind === "area" ? "field spanall" : "field";
           return <label key={k} className={span}><span>{t(label)}</span>
             {kind === "select" ? <select className="inp" disabled={dis} defaultValue={v} key={v + o.rev} onChange={e => saveHeader(k, e.target.value)}>{opts!.map(x => <option key={x} value={x}>{k === "dept" ? DEPTS[x] || t("pick") : x || t("pick")}</option>)}</select>
               : kind === "area" ? <textarea className="inp" disabled={dis} defaultValue={v} key={v + o.rev} onBlur={e => saveHeader(k, e.target.value)} />

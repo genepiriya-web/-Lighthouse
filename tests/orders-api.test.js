@@ -175,6 +175,15 @@ test("store addition (Gene, 27 Oct): Store opens a linked job at Approve; it hol
   assert.ok(ok(await api("admin","GET",`/api/orders/${j.id}`)).activity.filter(x=>x.action==="store_addition").length===2,"logged on the main job");
 });
 
+test("sales person comes from the list in settings (Gene, 27 Oct); a job keeps an older name it already has",{skip},async()=>{
+  assert.deepEqual(ok(await api("crew","GET","/api/settings")).sales_people,["เชอร์รี่","เบนซ์","สอง"]);
+  assert.equal((await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Sale pick",sale:"Nobody"})).body.error,"bad_sale");
+  const j=ok(await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Sale pick",sale:"เบนซ์"}));
+  assert.equal((await api("sale","PATCH",`/api/orders/${j.id}`,{rev:0,sale:"cherry"})).body.error,"bad_sale");
+  const r=ok(await api("sale","PATCH",`/api/orders/${j.id}`,{rev:0,sale:"สอง"})).rev;
+  ok(await api("sale","PATCH",`/api/orders/${j.id}`,{rev:r,sale:""}),"can be cleared");
+});
+
 test("header vs money permissions follow the artifact: accounting edits fees, not job details",{skip},async()=>{
   const j=ok(await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Money job"}));
   ok(await api("sale","PUT",`/api/orders/${j.id}/lines`,{rev:0,lines:[{k:"a",t:2,pid:2,list:150,qty:4,days:1}]}));

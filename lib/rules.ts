@@ -59,3 +59,8 @@ export function moveCheckV2(role: Role | string, o: Partial<Order> & { status: s
   if (unpriced(lines).length) return "rNeedPrices";
   return null;
 }
+
+// ---------- Sales people (Gene, 27 Oct 2026) ----------
+// The sales person on a job is picked from a list. A `sales_people` row in settings replaces this default (v2's own key:
+// the importer writes the old system's `sales`, never this). Not seeded by a migration, so a backup restore stays clean.
+export const DEFAULT_SALES_PEOPLE = ["เชอร์รี่", "เบนซ์", "สอง"];

@@ -11,7 +11,7 @@ import {
   type Line, type Order, type Status,
 } from "../logic";
 import { ApiError, bad } from "./http";
-import { priceBreaks, unapproved, canEditHeader, canEditMoney, STORE_ADD, HOLDING, STORE_ADD_TYPES, canEditItems, moveCheckV2, type PriceBreak, type PriceApproval } from "../rules";
+import { priceBreaks, unapproved, canEditHeader, canEditMoney, STORE_ADD, HOLDING, STORE_ADD_TYPES, canEditItems, moveCheckV2, DEFAULT_SALES_PEOPLE, type PriceBreak, type PriceApproval } from "../rules";
 import type { Caller } from "./auth";
 
 // ---------- shapes ----------
@@ -107,6 +107,13 @@ function cleanMoney(k: MoneyKey, v: unknown): number {
 }
 
 
+/** The sales person must be one from the list in settings (Gene, 27 Oct). A job keeps an older name it already has. */
+async function checkSale(c: PoolClient, sale: unknown, current?: unknown) {
+  if (sale == null || sale === "" || sale === current) return;
+  const list = (await c.query("select value from settings where key = 'sales_people'")).rows[0]?.value ?? DEFAULT_SALES_PEOPLE;
+  if (Array.isArray(list) && list.length && !list.includes(sale)) throw bad("bad_sale", "Pick the sales person from the list");
+}
+
 async function resolveCustomer(c: PoolClient, fields: Record<string, unknown>) {
   // Prefer the customer id (fixes L4: the artifact matched by name). Fill billing/phone from the customer when empty.
   if (fields.customer_id) {
@@ -149,7 +156,7 @@ export async function createOrder(c: PoolClient, who: Caller, body: Record<strin
   if (who.role !== "admin" && who.role !== "sale") throw new ApiError(403, "rRole");
   const f: Record<string, unknown> = {};
   for (const k of Object.keys(HEADER_FIELDS) as HeaderKey[]) if (body[k] !== undefined) f[HEADER_FIELDS[k]] = cleanHeader(k, body[k]);
-  await resolveCustomer(c, f);
+  await resolveCustomer(c, f); await checkSale(c, f.sale);
   if (!String(f.customer_name ?? "").trim()) throw bad("needCust", "Choose a customer");
   if (!String(f.job_title ?? "").trim()) throw bad("needTitle", "Add a job title");
   if (f.ship && f.ret && String(f.ret) < String(f.ship)) throw bad("badDates", "Return date must be on or after the ship date");
@@ -175,6 +182,7 @@ export async function updateOrder(c: PoolClient, who: Caller, id: string, body: 
   for (const k of header) patch[HEADER_FIELDS[k]] = cleanHeader(k, body[k]);
   for (const k of money) patch[MONEY_FIELDS[k]] = cleanMoney(k, body[k]);
   if (patch.customer_id !== undefined) await resolveCustomer(c, patch);
+  if (patch.sale !== undefined) await checkSale(c, patch.sale, o.sale);
   const ship = (patch.ship !== undefined ? patch.ship : o.ship) as string | null, ret = (patch.ret !== undefined ? patch.ret : o.ret) as string | null;
   if (ship && ret && ret < ship) throw bad("badDates", "Return date must be on or after the ship date");
   for (const [col, v] of Object.entries(patch)) if (o[col] !== v) changed[col] = [o[col] ?? null, v];
