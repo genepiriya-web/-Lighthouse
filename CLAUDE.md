@@ -41,6 +41,7 @@ Gene (MD) decides. Give pros and cons for every proposal. Never guess facts: wri
 - Sign-in (`lib/server/auth.ts`): Supabase access tokens, verified per Supabase's docs (key list for RS256/ES256, `/auth/v1/user` for HS256). The `lhd_at` cookie counts for GET/HEAD only; changes need `Authorization: Bearer` (no CSRF). New people join through `staff_invites` on first verified-email sign-in. `LHD_AUTH=dev` (header `x-dev-user`) is for local dev/tests only and refuses a non-local database.
 - Staff trial (`npm run trial`): one PIN per department in `LHD_TRIAL_PINS` (from git-ignored `.trial-pins.json`, read only by `scripts/trial.js`); the PIN alone decides the trial account (`TRIAL_ACCOUNTS` in auth.ts) and staff ids in headers/cookies are ignored. Support is its own role with Sales rights (Gene, 27 Oct): `requireStaff` gives it `role: "sale"` and `dept: "support"`, and SQL `app_role()` reports it as sale; check permissions on `role`, never on `dept`. Test servers must pass `LHD_TRIAL_PINS: ""` so PINs on this machine never lock them. Feedback rows are server-only.
 - Bug reports (`lib/server/notify.ts`, Gene 25 Oct: level 1 only, no AI auto-fix): saved first, then announced in Discord via `DISCORD_WEBHOOK_URL` (Gene's secret; never ask for it or print it; only discord.com webhook URLs are used). The Discord message carries type, page, department, number and a link, never the report text (unless `DISCORD_INCLUDE_TEXT=1`), customer data or device details, and `allowed_mentions` stays empty. Unsent rows are retried on the next report and when an admin opens the list.
+- Daily job board (`lib/server/board.ts`, Gene 27 Oct): one `board_entries` row per job per day (free text: loc, onloc, head, crew, trucks, gens, remark), saved whole with an `updatedAt` stale check and logged as an order `board` activity. Admin, sale (incl. Support) and store edit. Print layout in `lib/boardform.js`.
 - Backups (`scripts/backup.js`): every public table must be in `TABLES` (create() refuses otherwise). Never commit backups; `data/` is git-ignored. Production go-live steps live in `docs/GO-LIVE.md` and are Gene's to run (secrets).
 
 ## Commands
@@ -52,6 +53,7 @@ Gene (MD) decides. Give pros and cons for every proposal. Never guess facts: wri
 - `npm run test:crewids` — crew national IDs
 - `npm run test:backup` · `npm run test:auth`
 - `npm run test:trial` — trial PIN lock and feedback
+- `npm run test:board` — daily job board API and print layout
 - `npm run test:notify` — bug reports and the Discord notice (fake Discord on 127.0.0.1)
 - `npm run test:e2e` — Playwright at 390 × 844 on a throwaway database (`e2e/db.js`)
 - `npm run test:orders` — starts the built app on a throwaway database and drives the order API as each role (needs `npm run build` + local Postgres)

@@ -14,7 +14,7 @@ require("./env"); const {migrate}=require("./migrate");
 
 // Load order respects foreign keys. Every public table must be listed: create() refuses to run if one is missing.
 const TABLES=["staff","positions","products","kit_parts","customers","customer_tax_ids","crew","crew_rates","crew_rate_costs","settings",
-  "order_counters","orders","order_lines","repairs","activity","import_runs","crew_national_ids","crew_id_links","staff_invites","feedback"];
+  "order_counters","orders","order_lines","board_entries","repairs","activity","import_runs","crew_national_ids","crew_id_links","staff_invites","feedback"];
 const MAGIC="LHDBK1";
 
 function backupKey(){ const k=Buffer.from(process.env.BACKUP_KEY??"","base64"); if(k.length!==32) throw new Error("BACKUP_KEY must be 32 bytes, base64 (separate from CREW_ID_KEY)"); return k; }

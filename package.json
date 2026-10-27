@@ -28,7 +28,8 @@
     "test:auth": "node --test --test-concurrency=1 tests/auth.test.js",
     "test:trial": "node --test --test-concurrency=1 tests/trial.test.js",
     "trial": "node scripts/trial.js",
-    "test:notify": "node --test --test-concurrency=1 tests/notify.test.js"
+    "test:notify": "node --test --test-concurrency=1 tests/notify.test.js",
+    "test:board": "node --test --test-concurrency=1 tests/board-api.test.js"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",

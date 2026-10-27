@@ -128,7 +128,7 @@ test("sale → store → CEO → store: special price blocks shipping until conf
 test("master data screens fit the phone; sale checks a flagged customer; store updates stock", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("lhd-lang", "en"));
   await as(page, "admin");
-  for (const [path, heading] of [["/catalog", "Catalog"], ["/customers", "Customers"], ["/crew", "Crew rates"], ["/team", "Team"], ["/settings", "Settings"], ["/catalog/1", "M18 · Synthetic HMI 18K"]]) {
+  for (const [path, heading] of [["/catalog", "Catalog"], ["/customers", "Customers"], ["/crew", "Crew rates"], ["/team", "Team"], ["/settings", "Settings"], ["/board", "Board"], ["/catalog/1", "M18 · Synthetic HMI 18K"]]) {
     await page.goto(path); await expect(page.getByRole("heading", { name: heading })).toBeVisible(); await noSidewaysScroll(page, path);
   }
   await as(page, "sale");

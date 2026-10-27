@@ -21,15 +21,15 @@ async function browser(): Promise<Browser> {
 const escAttr = (s: string) => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 
 /** A4 PDF; `label` is printed top right on every page as "<label> (Page x/y)", like the old system's printouts. */
-export async function htmlToPdf(html: string, label: string): Promise<Buffer> {
+export async function htmlToPdf(html: string, label: string, opts: { landscape?: boolean } = {}): Promise<Buffer> {
   const ctx = await (await browser()).newContext({ javaScriptEnabled: false });
   try {
     await ctx.route("**/*", r => r.request().url().startsWith("data:") ? r.continue() : r.abort());
     const page = await ctx.newPage();
     await page.setContent(html, { waitUntil: "load", timeout: 15000 });
     return await page.pdf({
-      format: "A4", printBackground: true, displayHeaderFooter: true,
-      margin: { top: "14mm", bottom: "12mm", left: "10mm", right: "10mm" },
+      format: "A4", landscape: !!opts.landscape, printBackground: true, displayHeaderFooter: true,
+      margin: opts.landscape ? { top: "12mm", bottom: "8mm", left: "8mm", right: "8mm" } : { top: "14mm", bottom: "12mm", left: "10mm", right: "10mm" },
       headerTemplate: `<div style="width:100%;font-size:8px;font-weight:700;text-align:right;padding:0 6mm;font-family:Arial,sans-serif">${escAttr(label)} (Page <span class="pageNumber"></span>/<span class="totalPages"></span>)</div>`,
       footerTemplate: "<div></div>",
     });
