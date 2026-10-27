@@ -1,19 +1,17 @@
 // Daily job board (Gene, 27 Oct 2026; replaces the "กระดานงาน" Excel). A day's board lists every job working that day
-// (Quote and Cancel left out) with what the job already knows — customer, DOP, title, sales, gaffer, crew, trucks and
-// generators on its items — next to the board entry for that day: location and time, head, electricians, trucks with
-// drivers, generators with operators, remark. Sections follow the Excel: department, then "ละคร" (job type TVD) or "โฆษณา".
+// (Quote and Cancel left out). Each column starts from what the job itself says (`auto`: gaffer, head, electricians,
+// drivers and vehicles, generator and its driver, note) and becomes the day's board entry once someone edits it: location
+// and time, gaffer, head, electricians, trucks with drivers, generators with operators, remark. Sections follow the Excel: department, then "ละคร" (job type TVD) or "โฆษณา".
 import "server-only";
 import type { PoolClient } from "pg";
 import type { Caller } from "./auth";
 import { ApiError, bad } from "./http";
-import { crewName } from "../quoteform";
+import { autoFill } from "../boardform";
 
-export const BOARD_FIELDS = ["loc", "onloc", "head", "crew", "trucks", "gens", "remark"] as const;
+export const BOARD_FIELDS = ["loc", "onloc", "gaffer", "head", "crew", "trucks", "gens", "remark"] as const;
 type Field = typeof BOARD_FIELDS[number];
 const isDay = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v));
 export const canEditBoard = (role: string) => role === "admin" || role === "sale" || role === "store"; // sale includes Support
-
-const GEN = /^(ultra silent\s+)?generator\b/i, TRUCK = /truck|รถ|van\b|pick ?up|6 ?wheel|10 ?wheel/i;
 
 export async function getBoard(c: PoolClient, day: unknown) {
   if (!isDay(day)) throw bad("bad_date", "day must be YYYY-MM-DD");
@@ -23,7 +21,8 @@ export async function getBoard(c: PoolClient, day: unknown) {
     where o.status not in ('Quote','Cancel') and coalesce(o.use_start, o.ship) <= $1 and coalesce(o.use_end, o.ret) >= $1
     order by o.dept nulls last, o.no`, [day])).rows;
   const ids = jobs.map(j => j.id);
-  const lines = ids.length ? (await c.query(`select order_id, t, description as "desc", code, qty, parent_k from order_lines where order_id = any($1) order by order_id, sort`, [ids])).rows : [];
+  const lines = ids.length ? (await c.query(`select l.order_id, l.t, l.description as "desc", l.code, l.qty, l.parent_k, cr.nick
+      from order_lines l left join crew cr on cr.id = l.crew_id where l.order_id = any($1) order by l.order_id, l.sort`, [ids])).rows : [];
   const entries = ids.length ? (await c.query(`select * from board_entries where order_id = any($1) and day = $2`, [ids, day])).rows : [];
   // the latest earlier day's entry of each job, so a team that stays the same can be copied forward
   const prev = ids.length ? (await c.query(`select distinct on (order_id) * from board_entries where order_id = any($1) and day < $2 order by order_id, day desc`, [ids, day])).rows : [];
@@ -32,13 +31,11 @@ export async function getBoard(c: PoolClient, day: unknown) {
   return {
     day,
     jobs: jobs.map(j => {
-      const ls = (L.get(j.id) ?? []).filter(l => !l.parent_k);
-      const fromJob = {
-        crew: ls.filter(l => l.t === 5 || l.t === 7).map(l => { const w = crewName(l); const name = w.name || l.code || "—"; return (w.pos ? `${name} (${w.pos})` : name) + (+l.qty > 1 ? ` ×${+l.qty}` : ""); }),
-        gens: ls.filter(l => GEN.test(String(l.desc ?? "").trim())).map(l => String(l.desc).trim()),
-        trucks: ls.filter(l => l.t === 4 && !GEN.test(String(l.desc ?? "").trim()) && TRUCK.test(String(l.desc ?? ""))).map(l => String(l.desc).trim() + (+l.qty > 1 ? ` ×${+l.qty}` : "")),
-      };
-      return { ...j, section: j.job_type === "TVD" ? "drama" : "ads", fromJob, entry: E.get(j.id) ?? null, prev: P.get(j.id) ?? null };
+      // What the job itself says for each column (Gene: fill the board from the job): crew by position and nickname,
+      // vehicles and generators from its transport lines, the gaffer and note from the job.
+      const a = autoFill((L.get(j.id) ?? []).filter(l => !l.parent_k));
+      const auto = { ...a, gaffer: a.gaffer || j.gaffer || "", remark: j.note || "" };
+      return { ...j, section: j.job_type === "TVD" ? "drama" : "ads", auto, entry: E.get(j.id) ?? null, prev: P.get(j.id) ?? null };
     }),
   };
 }

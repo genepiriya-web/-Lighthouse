@@ -6,9 +6,10 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Shell, api, useApp, stCls } from "../ui/app";
+import { span } from "../../lib/boardform";
 
 type Any = Record<string, any>;
-const FIELDS = ["onloc", "loc", "head", "crew", "trucks", "gens", "remark"] as const;
+const FIELDS = ["onloc", "loc", "gaffer", "head", "crew", "trucks", "gens", "remark"] as const;
 type Field = typeof FIELDS[number];
 const DEPT: Record<number, string> = { 1: "LIGHTING", 2: "GRIP", 3: "GRIP&LIGHTING" };
 const bkk = (d = new Date()) => d.toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
@@ -24,8 +25,10 @@ function Board() {
   useEffect(() => { setB(null); load(); }, [load]);
 
   const save = async (j: Any, patch: Partial<Record<Field, string>>, refresh = false) => {
-    const cur: Any = j.entry ?? {}; const next = { ...Object.fromEntries(FIELDS.map(k => [k, cur[k] ?? ""])), ...patch };
-    if (FIELDS.every(k => (next[k] ?? "") === (cur[k] ?? ""))) return;
+    // the first edit of a day saves the whole row as shown, so the other columns keep what the job filled in
+    const cur: Any = j.entry ?? j.auto ?? {}; const next = { ...Object.fromEntries(FIELDS.map(k => [k, cur[k] ?? ""])), ...patch };
+    if (j.entry && FIELDS.every(k => (next[k] ?? "") === (cur[k] ?? ""))) return;
+    if (!j.entry && FIELDS.every(k => (next[k] ?? "") === (j.auto?.[k] ?? ""))) return;
     const r = await api("PUT", `/api/board/${encodeURIComponent(j.id)}/${day}`, { ...next, ...(j.entry && { updatedAt: new Date(j.entry.updated_at).toISOString() }) });
     if (r.ok) { setB((x: Any) => ({ ...x, jobs: x.jobs.map((y: Any) => y.id === j.id ? { ...y, entry: r.body.entry } : y) })); if (refresh) setVer(v => v + 1); }
     else { setErr(t(r.body?.error ?? "error")); if (r.status === 409) load(); }
@@ -52,11 +55,9 @@ function Board() {
 }
 
 function Row({ j, can, onSave }: { j: Any; can: boolean; day: string; onSave: (p: Partial<Record<Field, string>>, refresh?: boolean) => void }) {
-  const { t } = useApp(); const e: Any = j.entry ?? {};
-  const hint: Partial<Record<Field, string>> = { crew: j.fromJob.crew.join(", "), trucks: j.fromJob.trucks.join(", "), gens: j.fromJob.gens.join(", "), remark: j.note ?? "" };
-  const empty = FIELDS.every(k => !e[k]);
+  const { t } = useApp(); const e: Any = j.entry ?? j.auto ?? {}; const fromJob = !j.entry;
   const field = (k: Field, wide = false) => <label key={k} className={`field ${wide ? "span2" : ""}`}><span>{t("bd_" + k)}</span>
-    <textarea className="inp" rows={k === "crew" || k === "remark" ? 2 : 1} disabled={!can} defaultValue={e[k] ?? ""} placeholder={hint[k] || ""} maxLength={2000}
+    <textarea className="inp" rows={k === "crew" || k === "remark" || k === "trucks" || k === "gens" ? 2 : 1} disabled={!can} defaultValue={e[k] ?? ""} maxLength={2000}
       onBlur={ev => onSave({ [k]: ev.target.value })} /></label>;
   return <div style={{ borderTop: "1px solid var(--line)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
     <div className="row" style={{ flexWrap: "wrap", gap: 6, minWidth: 0 }}>
@@ -64,10 +65,11 @@ function Row({ j, can, onSave }: { j: Any; can: boolean; day: string; onSave: (p
       {j.addition_of_no && <span className="muted small">{t("bd_addOf", { n: j.addition_of_no })}</span>}
       <span className={stCls(j.status)}>{j.status}</span>
       <b className="ellip" style={{ minWidth: 0 }}>{j.job_title || "—"}</b>
-      <span className="muted small">{[j.customer_name, j.dop && `DOP ${j.dop}`, j.sale && `${t("h_sale")} ${j.sale}`, j.gaffer && `Gaffer ${j.gaffer}`].filter(Boolean).join(" · ")}</span>
+      <span className="small">{[j.customer_name, j.dop && `DOP ${j.dop}`, j.sale && `${t("h_sale")} ${j.sale}`, span(j)].filter(Boolean).join(" · ")}</span>
+      {fromJob && <span className="tag">{t("bd_fromJob")}</span>}
     </div>
-    <div className="grid">{field("onloc")}{field("loc", true)}{field("head")}{field("crew", true)}{field("trucks")}{field("gens")}{field("remark", true)}</div>
-    {can && empty && j.prev && <div><button className="btn sm" type="button" onClick={() => onSave(Object.fromEntries(FIELDS.map(k => [k, j.prev[k] ?? ""])), true)}>{t("bd_copy", { d: dmy(String(j.prev.day).slice(0, 10)) })}</button></div>}
+    <div className="grid">{field("onloc")}{field("loc", true)}{field("gaffer")}{field("head")}{field("crew", true)}{field("trucks")}{field("gens")}{field("remark", true)}</div>
+    {can && fromJob && j.prev && <div><button className="btn sm" type="button" onClick={() => onSave(Object.fromEntries(FIELDS.map(k => [k, j.prev[k] ?? ""])), true)}>{t("bd_copy", { d: dmy(String(j.prev.day).slice(0, 10)) })}</button></div>}
     {e.updated_by_name && <div className="muted small">{t("bd_saved", { n: e.updated_by_name })}</div>}
   </div>;
 }

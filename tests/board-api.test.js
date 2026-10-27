@@ -1,7 +1,7 @@
 // Daily job board (Gene, 27 Oct 2026): who sees and edits it, which jobs a day shows, entries per job per day, the stale
 // check, copying forward, and the PDF. Synthetic data only (tests/helpers/fixture.js).
 const test=require("node:test"); const assert=require("node:assert/strict");
-const {startTestServer,skipReason}=require("./helpers/server"); const {boardPage,span}=require("../lib/boardform.js");
+const {startTestServer,skipReason}=require("./helpers/server"); const {boardPage,span,autoFill,unitOf}=require("../lib/boardform.js");
 const skip=skipReason(); let S;
 test.before(async()=>{ if(!skip) S=await startTestServer(3931); });
 test.after(async()=>{ if(S) await S.stop(); });
@@ -12,7 +12,7 @@ test("any staff reads a day; only jobs working that day; quotes left out; what t
   assert.equal((await S.api(null,"GET","/api/board?day=2026-11-01")).status,401);
   const b=ok(await S.api("crew","GET","/api/board?day=2026-11-01"));
   assert.deepEqual(b.jobs.map(j=>j.no),["6900001"],"6900002 is a quote"); const j=b.jobs[0];
-  assert.deepEqual([j.section,j.entry,j.prev],["ads",null,null]); assert.deepEqual(j.fromJob.crew,["G01"]);
+  assert.deepEqual([j.section,j.entry,j.prev],["ads",null,null]); assert.equal(j.auto.crew,"T","crew filled from the job by nickname");
   assert.deepEqual(ok(await S.api("crew","GET","/api/board?day=2026-11-03")).jobs,[],"after the job's last day");
   assert.equal((await S.api("crew","GET","/api/board?day=1.11.2026")).status,422);
 });
@@ -40,10 +40,20 @@ test("the day as a landscape PDF, laid out like the Excel; text is escaped",{ski
 });
 
 test("print layout (no server): sections, the Excel's columns, entry over job data, escaping",()=>{
-  const job={id:"1",no:"6909001",dept:1,section:"drama",customer_name:"<House>",dop:"DOP",job_title:"T",sale:"S",gaffer:"G",note:"note",use_start:"2026-11-01",use_end:"2026-11-03",
-    fromJob:{crew:["X (ELECTRICIAN)"],trucks:["Lighting Truck"],gens:["Generator 45 KVA"]},entry:{head:"H",crew:"A B"}};
-  const h=boardPage({day:"2026-11-01",jobs:[job]},"01/11/2026");
+  const auto={gaffer:"",head:"X",crew:"Y Z",trucks:"D\nP01 (9467)",gens:"",remark:"note"};
+  const job={id:"1",no:"6909001",dept:1,section:"drama",customer_name:"<House>",dop:"DOP",job_title:"T",sale:"S",use_start:"2026-11-01",use_end:"2026-11-03",auto,entry:{head:"H",crew:"A B"}};
+  const job2={...job,id:"2",no:"6909002",entry:null};
+  const h=boardPage({day:"2026-11-01",jobs:[job,job2]},"01/11/2026");
   assert.ok(h.includes("LIGHTING / ละคร")&&h.includes("ELECTRICIAN.")&&h.includes("&lt;House&gt;")&&!h.includes("<House>"));
-  assert.ok(h.includes(">A B<")&&!h.includes("X (ELECTRICIAN)"),"the entry wins"); assert.ok(h.includes("Lighting Truck"),"job data fills the gaps (grey)");
+  assert.ok(h.includes(">A B<"),"the entry wins"); assert.ok(h.includes(">Y Z<")&&h.includes("D<br>P01 (9467)"),"a job with no entry prints what the job says");
   assert.equal(span(job),"1/11-3/11"); assert.equal(span({use_start:"2026-11-05",use_end:"2026-11-05"}),"5");
+});
+
+test("filled from the job like the Excel (Gene, 27 Oct): nicknames by position, (Grip), (FL), drivers and vehicles, generator with its driver",()=>{
+  const a=autoFill([{t:5,desc:"HEAD ELECTRICIAN SERIES · Test A (หนึ่ง)"},{t:5,desc:"ELECTRICIAN · Test B (สอง)"},{t:5,desc:"ASST. HEAD ELECT.SERIES · Test A (หนึ่ง)"},
+    {t:5,desc:"GRIP MAN · Test C (สาม)"},{t:7,desc:"GAFFER-TVC2 · Test D (สี่)"},{t:5,desc:"PICK UP DRIVER  · Test E (ห้า)"},{t:5,desc:"Electrician & Pick up Driver · Test F (หก)"},
+    {t:5,desc:"GEN DRIVER · Test G (เจ็ด)"},{t:5,code:"G01",nick:"Nick",desc:""},{t:4,desc:"Lighting Pick Up 1.5 Ton (0000) P18"},{t:4,desc:"Generator 45 KVA (0001) G17"},{t:4,desc:"Re-Fuel Service Charge"}]);
+  assert.deepEqual(a,{gaffer:"สี่(FL)",head:"หนึ่ง",crew:"สอง สาม(Grip) Nick",trucks:"ห้า หก\nP18 (0000)",gens:"เจ็ด G17 (0001)"});
+  assert.equal(unitOf("Van (TEST-0000) V5"),"V5 (TEST-0000)"); assert.equal(unitOf("Lighting Truck"),"Lighting Truck");
+  assert.deepEqual(autoFill([]),{gaffer:"",head:"",crew:"",trucks:"",gens:""});
 });
