@@ -209,17 +209,17 @@ test("dates (Gene, 27 Oct): Store moves the return date from Quote up to Shipped
   assert.equal((await api("store","PATCH",`/api/orders/${j.id}`,{rev:r,ret:"2026-11-01"})).body.error,"badDates");
 });
 
-test("discounts on Equipment only (Gene, 27 Oct): a discount on any other type is saved as 0; copies drop them too",{skip},async()=>{
+test("discounts on Equipment and Sub-rent only (Gene, 27 Oct): a discount on any other type is saved as 0; copies drop them too",{skip},async()=>{
   const j=ok(await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Disc job"}));
   const lines=[{k:"e",t:1,pid:1,code:"M18",list:24000,qty:1,days:1,disc:20},{k:"a",t:2,pid:2,code:"CG",list:150,qty:2,days:1,disc:50},
-    {k:"g",t:4,pid:3,code:"GEN",list:9000,qty:1,days:1,disc:10},{k:"c",t:5,code:"G01",list:3000,qty:1,days:1,disc:30}];
+    {k:"g",t:4,pid:3,code:"GEN",list:9000,qty:1,days:1,disc:10},{k:"c",t:5,code:"G01",list:3000,qty:1,days:1,disc:30},{k:"s",t:6,code:"SUB",desc:"Sub-rent crane",list:1000,qty:1,days:1,disc:15}];
   ok(await api("sale","PUT",`/api/orders/${j.id}/lines`,{rev:0,lines}));
   const d=ok(await api("sale","GET",`/api/orders/${j.id}`));
-  assert.deepEqual(d.lines.map(l=>[l.k,l.disc]),[["e",20],["a",0],["g",0],["c",0]]);
-  assert.equal(d.order.totals.sub,L.r2(24000*0.8+300+9000+3000));
-  // the extra discount % also comes off Equipment only (Gene, 27 Oct): 10% of 19,200, not of the whole 31,500
+  assert.deepEqual(d.lines.map(l=>[l.k,l.disc]),[["e",20],["a",0],["g",0],["c",0],["s",15]]);
+  assert.equal(d.order.totals.sub,L.r2(24000*0.8+300+9000+3000+850));
+  // the extra discount % comes off Equipment only (Gene, 27 Oct): 10% of 19,200, not of the whole 32,350
   const e=ok(await api("sale","PATCH",`/api/orders/${j.id}`,{rev:1,extraDisc:10}));
-  const T=ok(await api("sale","GET",`/api/orders/${j.id}`)).order.totals; assert.equal(T.extra,1920); assert.equal(T.total,L.r2((31500-1920)*1.07));
+  const T=ok(await api("sale","GET",`/api/orders/${j.id}`)).order.totals; assert.equal(T.extra,1920); assert.equal(T.total,L.r2((32350-1920)*1.07));
   const cp=ok(await api("sale","POST","/api/orders/6900002/copy",{})); // legacy job: its lines carry no discount, nothing to drop
   assert.ok(ok(await api("sale","GET",`/api/orders/${cp.id}`)).lines.every(l=>l.t===1||!l.disc));
 });
