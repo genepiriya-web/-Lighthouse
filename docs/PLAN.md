@@ -362,7 +362,7 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
       - What does Accounting key into Express for each rental job?
     - The web search found no official Express API documentation. Unconfirmed.
 39. **Store addition (Q39), Gene, 27 Oct 2026:** separate linked job; Store can add at Approve only; no prices until Sales sets them; holds stock at once. Built that way. Open:
-    - Billing: one invoice per addition, or should Accounting add it to the main job's invoice? Today each is its own job and its own Draft INV.
+    - **Billing, decided by Gene on 27 Oct: each Store addition is its own invoice** (its own Draft INV), as built.
     - Should the main job show its additions' total next to its own?
     - The Cockpit's overbooking check is logic.js's and doesn't count Store Add jobs yet (the stock checks on moves and saves do). Fine while additions are short-lived; say if the Cockpit should count them too.
 38. **Quotation PDF in the paper-form layout (Q38), Gene, 27 Oct 2026** (sample: quotation 6902267 rev 016 from the old system; not kept in the repo, it has customer data).
