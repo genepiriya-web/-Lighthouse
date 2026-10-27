@@ -28,11 +28,14 @@ test("the HTML quotation and the PDF form print the same v2 total",()=>{
 
 test("generator fuel by size (Gene, 27 Oct): match the Hour Gasoline item with the same KVA; nothing for other items",()=>{
   const {kvaOf,isGeneratorDesc,fuelItemFor,isFuelDesc}=require("../lib/pricing.js");
-  const items=[{id:1,desc:"Hour  Gasoline 45  KVA.",price:300},{id:2,desc:"Hour Gasoline 60 KVA ",price:360},{id:3,desc:"Hour Gasoline 183KVA ",price:1000},{id:4,desc:"Re-Fuel Service Charge",price:1500}];
+  const items=[{id:1,desc:"Hour  Gasoline 45  KVA.",price:300},{id:2,desc:"Hour Gasoline 60 KVA ",price:360},{id:3,desc:"Hour Gasoline 183KVA ",price:1000},{id:4,desc:"Re-Fuel Service Charge",price:1500},{id:5,desc:"Hour Gasoline 125 KVA",price:700}];
   assert.equal(kvaOf("Generator 45 KVA (1564) G16"),45); assert.equal(kvaOf("Generator 125KVA (97-8459) G6"),125); assert.equal(kvaOf("Cable Guard"),null);
   assert.ok(isGeneratorDesc("Generator 270 KVA.(96-7592) G12")&&isGeneratorDesc("Ultra Silent Generator 150 KVA."));
   assert.ok(!isGeneratorDesc("Mini Generator 3 KVA")&&!isGeneratorDesc("Generator Driver - Test")&&!isGeneratorDesc("Adapter for Gen 7KVA"));
   assert.equal(fuelItemFor("Generator 45 KVA (1564) G16",items).price,300); assert.equal(fuelItemFor("Generator 183 KVA (96-6876) G9",items).price,1000);
-  assert.equal(fuelItemFor("Ultra Silent Generator 150 KVA.",items),null,"no 150 KVA rate in the catalog: nothing guessed");
+  assert.equal(fuelItemFor("Ultra Silent Generator 150 KVA.",items).price,700,"150 KVA uses the 125 KVA rate for now (Gene, 27 Oct)");
+  assert.equal(fuelItemFor("Ultra Silent Generator 150 KVA.",items.filter(x=>x.id!==5)),null,"and nothing when that isn't there either");
+  assert.equal(fuelItemFor("Ultra Silent Generator 150 KVA.",[...items,{id:6,desc:"Hour Gasoline 150 KVA",price:800}]).price,800,"its own item wins once the catalog has one");
+  assert.equal(fuelItemFor("Generator 300 KVA",items),null,"other sizes without a rate: nothing guessed");
   assert.ok(isFuelDesc("Hour Gasoline 60 KVA")&&!isFuelDesc("Re-Fuel Service Charge"));
 });
