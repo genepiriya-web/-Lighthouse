@@ -183,6 +183,7 @@ function AddItem({ tt, order, customer, onAdd }: { tt: number; order: Any; custo
 }
 
 /** Quotation / Draft INV / Item list, with or without discount — rendered by the server (lib/docs.js), as on the artifact.
+ *  The quotation also comes as a PDF in the company's paper-form layout (lib/quoteform.js).
  *  The preview is a sandboxed frame: no scripts, whatever the old system's templates contain. */
 function Docs({ id }: { id: string }) {
   const { t } = useApp(); const [kind, setKind] = useState<"quote" | "draft" | "items">("quote"); const [disc, setDisc] = useState(true); const [open, setOpen] = useState(false);
@@ -191,7 +192,8 @@ function Docs({ id }: { id: string }) {
     <div className="row"><div className="seg">{([["quote", "docQuote"], ["draft", "docDraft"], ["items", "docItems"]] as const).map(([k, l]) =>
       <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}>{t(l)}</button>)}</div>
       {kind !== "items" && <div className="seg"><button type="button" aria-pressed={disc} onClick={() => setDisc(true)}>{t("withDisc")}</button><button type="button" aria-pressed={!disc} onClick={() => setDisc(false)}>{t("noDisc")}</button></div>}
-      <a className="btn primary" href={url} download>{t("download")} .html</a></div>
+      {kind === "quote" && <a className="btn primary" href={`${url}&format=pdf`} download>{t("download")} PDF</a>}
+      <a className={`btn ${kind === "quote" ? "" : "primary"}`} href={url} download>{t("download")} .html</a></div>
     <details onToggle={e => setOpen((e.target as HTMLDetailsElement).open)}><summary className="small muted" style={{ cursor: "pointer" }}>{t("preview")}</summary>
       {open && <iframe title={t("preview")} src={`${url}&inline=1`} sandbox="" style={{ width: "100%", height: 520, border: "1px solid var(--line)", borderRadius: 6, background: "#fff" }} />}</details>
   </section>;

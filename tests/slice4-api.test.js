@@ -33,3 +33,15 @@ test("documents: any staff downloads; same totals as logic.js; legacy jobs too; 
   assert.equal((await raw("store","/api/orders/6900001/document?kind=invoice")).status,422);
   assert.equal((await raw("store","/api/orders/nope/document")).status,404);
 });
+
+test("quotation PDF (paper form): any staff, a real PDF with the order's revision in its name; quotation only",{skip},async()=>{
+  assert.equal((await raw(null,"/api/orders/6900001/document?format=pdf")).status,401);
+  const r=await fetch("http://127.0.0.1:3924/api/orders/6900001/document?kind=quote&disc=1&format=pdf",{headers:{"x-dev-user":S.uid.crew}});
+  assert.equal(r.status,200); assert.equal(r.headers.get("content-type"),"application/pdf");
+  assert.match(r.headers.get("content-disposition"),/^attachment; filename="6900001-\d{3}-quotation\.pdf"$/);
+  const b=Buffer.from(await r.arrayBuffer()); assert.equal(b.subarray(0,5).toString(),"%PDF-"); assert.ok(b.length>5000);
+  const nod=await fetch("http://127.0.0.1:3924/api/orders/6900001/document?disc=0&format=pdf&inline=1",{headers:{"x-dev-user":S.uid.store}});
+  assert.match(nod.headers.get("content-disposition"),/^inline; filename="6900001-\d{3}-quotation-nodisc\.pdf"$/); await nod.arrayBuffer();
+  assert.equal((await raw("store","/api/orders/6900001/document?kind=items&format=pdf")).status,422);
+  assert.equal((await raw("store","/api/orders/nope/document?format=pdf")).status,404);
+});

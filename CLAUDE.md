@@ -18,6 +18,7 @@ Gene (MD) decides. Give pros and cons for every proposal. Never guess facts: wri
 - `lib/logic.ts` — the only way the Next.js app imports `src/logic.js` (typed by `src/logic.d.ts`). Server routes and client components both use it.
 - `app/` — Next.js (App Router). Screens: `app/jobs` (list), `app/jobs/new`, `app/jobs/[id]` (job sheet), `app/dev-login`; shared frame in `app/ui/app.tsx`. `app/api/**` is the server API. `app/price-check` is the M1 check page.
 - `lib/docs.js` — Quotation / Draft INV / Item list HTML, a line-for-line port of the artifact's `docBody()`; `tests/docs.test.js` compares it with the artifact's own output. Template HTML goes through its allow-list sanitiser; never render template HTML any other way.
+- `lib/quoteform.js` — the quotation in the company's paper-form layout (Gene, 27 Oct), drawn to PDF by `lib/server/pdf.ts` (headless Chromium, JavaScript off, network blocked) via `lib/server/quotepdf.ts`; route `document?format=pdf`. Money only from logic.js, same as `lib/docs.js` (`tests/quoteform.test.js`). Logo from `assets/logo.png`. Never put the real sample quotation (customer data) in the repo.
 - `lib/rules.ts` — rules shared by server and screens (special prices, who may edit details/money/store). `lib/i18n.ts` + `lib/i18n.artifact.json` — Thai/English; reuse artifact strings (re-extract with `node scripts/extract-i18n.js`), and list any new Thai for review.
 - `app/globals.css` — the artifact's CSS copied as-is plus a few phone-layout additions. Screens must work at 390 px: nothing may run past the screen edge (`e2e/phone.spec.ts` checks every element, because `overflow-x: hidden` would hide it from a plain width check). Add new screens to that test.
 - `supabase/migrations/` — schema, RLS, guards. Same SQL on Supabase and local. `supabase/local-shim.sql` fakes Supabase's roles/`auth.uid()` locally; never apply it to Supabase.
@@ -42,7 +43,7 @@ Gene (MD) decides. Give pros and cons for every proposal. Never guess facts: wri
 
 ## Commands
 - `npm run build` (artifact page + Next.js) · `npm run build:artifact` · `npm run typecheck`
-- `npm test` (unit + parity) · `npm run test:ui` (jsdom, artifact page) · `npm run test:api` (starts the built app, prices every parity job via the API)
+- `npm test` (unit + parity + documents) · `npm run test:ui` (jsdom, artifact page) · `npm run test:api` (starts the built app, prices every parity job via the API)
 - `npm run db:start` · `npm run db:migrate` · `npm run db:import` · `npm run test:db` (throwaway database per run) · `npm run db:stop`
 - `npm run test:master` — catalog/customers/crew/team/settings API (uses `tests/helpers/server.js`)
 - `npm run test:slice4` — cockpit and documents API

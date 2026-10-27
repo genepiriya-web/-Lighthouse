@@ -48,6 +48,8 @@ Project region **sin1** (Singapore). Environment variables (Production):
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` / `SUPABASE_PUBLISHABLE_KEY` | publishable key |
 | `CREW_ID_KEY` | from step 2 |
 
+Quotation PDF: the server draws it with Chromium (`playwright-core`). Vercel has no Chromium, so before go-live test a serverless Chromium package there; until then the PDF button answers 503 `pdf_unavailable` and the HTML quotation still works (PLAN Q38).
+
 **Never set `LHD_AUTH`** in production (the test sign-in also refuses to run against a non-local database).
 
 ## 5. Backups — Gene
