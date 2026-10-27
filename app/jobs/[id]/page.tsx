@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { Shell, api, useApp, stCls, money, fmtD } from "../../ui/app";
 import { CustomerPick } from "../../ui/customer-pick";
 import { TYPES, STATUSES, STOCKED_TYPES, orderTotals, typeTotals, lineCalc, chargeDays, defaultDisc, expandKit, syncChildren, type Line } from "../../../lib/logic";
-import { canEditHeader, canEditMoney, canEditReturn, canStore, STORE_ADD, STORE_ADD_TYPES, MOVES_V2, canEditItems, moveCheckV2, unpriced, type PriceBreak } from "../../../lib/rules";
+import { canEditHeader, canEditMoney, canEditReturn, canStore, STORE_ADD, STORE_ADD_TYPES, MOVES_V2, canEditItems, moveCheckV2, unpriced, TRANSPORT_REMARKS, type PriceBreak } from "../../../lib/rules";
 
 type Any = Record<string, any>;
 interface Data { order: Any; lines: Array<Line & { k: string }>; activity: Any[]; needsCeo: PriceBreak[]; customer: { id: string; name: string; default_disc: number } | null;
@@ -156,7 +156,11 @@ function Sheet({ id }: { id: string }) {
               {noPrice ? <span /> : num("list", "0.01")}{num("qty")}{num("days", "0.5")}{noPrice ? <span /> : crew ? num("ot", "0.5") : num("disc", "0.01")}
               <span className="tot num" style={{ textAlign: "right" }}>{noPrice ? "" : `฿ ${money(c.total)}`}</span>
               <span>{can && <button className="btn sm ghost" type="button" onClick={() => removeLine(l.k)} aria-label={t("remove")}>✕</button>}</span>
+              {l.t === 4 && !child && (can ? <label className="row small" style={{ gridColumn: "1/-1", gap: 6 }}><span className="muted">{t("i_remark")}</span>
+                <input className="inp" style={{ flex: 1, minWidth: 0 }} list="transport-remarks" value={l.remark ?? ""} placeholder={t("remarkPick")} maxLength={1000} onChange={e => setLine(l.k, { remark: e.target.value })} /></label>
+                : l.remark ? <span className="muted small" style={{ gridColumn: "1/-1" }}>{t("i_remark")}: {l.remark}</span> : null)}
             </div>; })}
+          <datalist id="transport-remarks">{TRANSPORT_REMARKS.map(x => <option key={x} value={x} />)}</datalist>
         </div>
         {editL && <AddItem tt={tt} order={o} customer={d.customer} noPrice={noPrice} onAdd={add => setDraft([...lines, ...add])} />}
         {dirty && <div className="row"><button className="btn primary" type="button" disabled={busy} onClick={saveDraft}>{t("saveItems")}</button>

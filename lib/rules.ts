@@ -70,3 +70,7 @@ export const DEFAULT_SALES_PEOPLE = ["เชอร์รี่", "เบนซ�
 // usage dates stay with Sales/Support through canEditHeader. Admin as before.
 export const canEditReturn = (role: Role | string, s: Status | string) => canStore(role) && ["Quote", "Order", "Approve", "Shipped", STORE_ADD].includes(s);
 export const canEditField = (role: Role | string, s: Status | string, k: string) => canEditHeader(role, s) || (k === "ret" && canEditReturn(role, s));
+
+// ---------- Transport remarks (Gene, 27 Oct 2026) ----------
+// Ready-made notes for transport lines; free text is allowed too. Printed in the quotation's Remark column.
+export const TRANSPORT_REMARKS = ["ค่าน้ำมัน ทางด่วน เก็บสด", "ชั่วโมงน้ำมันเครื่องปั่นไม่คิด", "จัดทดแทน"];

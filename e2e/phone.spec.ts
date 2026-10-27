@@ -67,6 +67,18 @@ test("sale → store → CEO → store: special price blocks shipping until conf
   await page.reload(); await expect(page.locator(".lrow:not(.head)").first().locator("input").nth(1)).toHaveValue("2");
   await page.locator(".lrow:not(.head)").first().locator("input").nth(1).fill("1");
   await expect(page.getByText(/saves itself within 5 seconds/)).toHaveCount(0, { timeout: 9000 });
+  // transport remark (Gene, 27 Oct): pick-or-type note on a transport line, saved with the items
+  await page.getByRole("tab", { name: /Transport/ }).click();
+  await page.getByPlaceholder("Search item name").fill("Generator");
+  await page.locator(".res", { hasText: "Generator package" }).getByRole("button", { name: "+" }).click();
+  await page.getByPlaceholder("Pick or type a remark").fill("ค่าน้ำมัน ทางด่วน เก็บสด");
+  await noSidewaysScroll(page, "transport remark");
+  await expect(page.getByText(/saves itself within 5 seconds/)).toHaveCount(0, { timeout: 9000 });
+  await page.reload(); await page.getByRole("tab", { name: /Transport/ }).click();
+  await expect(page.getByPlaceholder("Pick or type a remark")).toHaveValue("ค่าน้ำมัน ทางด่วน เก็บสด");
+  await page.locator(".lrow:not(.head):not(.child)").first().getByRole("button", { name: "Remove" }).click(); // the rest of the walk uses the M18 only
+  await expect(page.getByText(/saves itself within 5 seconds/)).toHaveCount(0, { timeout: 9000 });
+  await page.getByRole("tab", { name: /Equipment/ }).click();
   await noSidewaysScroll(page, "job sheet (items)");
 
   await page.getByRole("button", { name: "Move to Order" }).click();
