@@ -64,3 +64,9 @@ export function moveCheckV2(role: Role | string, o: Partial<Order> & { status: s
 // The sales person on a job is picked from a list. A `sales_people` row in settings replaces this default (v2's own key:
 // the importer writes the old system's `sales`, never this). Not seeded by a migration, so a backup restore stays clean.
 export const DEFAULT_SALES_PEOPLE = ["เชอร์รี่", "เบนซ์", "สอง"];
+
+// ---------- Who sets which date (Gene, 27 Oct 2026) ----------
+// Store also moves the return date, from Quote up to Shipped (e.g. the client extends). Support has Sales' rights, so the
+// usage dates stay with Sales/Support through canEditHeader. Admin as before.
+export const canEditReturn = (role: Role | string, s: Status | string) => canStore(role) && ["Quote", "Order", "Approve", "Shipped", STORE_ADD].includes(s);
+export const canEditField = (role: Role | string, s: Status | string, k: string) => canEditHeader(role, s) || (k === "ret" && canEditReturn(role, s));

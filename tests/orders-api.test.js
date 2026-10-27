@@ -14,7 +14,7 @@ const ADMIN=process.env.DATABASE_ADMIN_URL; const root=path.join(__dirname,"..")
 const skip=!ADMIN?"no DATABASE_ADMIN_URL — run `npm run db:start`":!fs.existsSync(path.join(root,".next/BUILD_ID"))?"run `npm run build` first":false;
 const dbName="lhd_api_"+crypto.randomBytes(4).toString("hex"); const PORT=3919; const base=`http://127.0.0.1:${PORT}`;
 const urlFor=db=>{ const u=new URL(ADMIN); u.pathname="/"+db; return u.toString(); };
-const ROLES=["admin","sale","store","accounting","crew"]; const uid={}; for(const r of ROLES) uid[r]=crypto.randomUUID();
+const ROLES=["admin","sale","store","accounting","crew","support"]; const uid={}; for(const r of ROLES) uid[r]=crypto.randomUUID();
 const NOT_STAFF=crypto.randomUUID(), INACTIVE=crypto.randomUUID();
 let admin, srv; const fixture=fs.mkdtempSync(path.join(os.tmpdir(),"lhd-api-"));
 let writes=0; // successful writes on the main job, to check every one left an activity row
@@ -182,6 +182,31 @@ test("sales person comes from the list in settings (Gene, 27 Oct); a job keeps a
   assert.equal((await api("sale","PATCH",`/api/orders/${j.id}`,{rev:0,sale:"cherry"})).body.error,"bad_sale");
   const r=ok(await api("sale","PATCH",`/api/orders/${j.id}`,{rev:0,sale:"สอง"})).rev;
   ok(await api("sale","PATCH",`/api/orders/${j.id}`,{rev:r,sale:""}),"can be cleared");
+});
+
+test("support (Gene, 27 Oct): its own role with Sales' rights; me shows both",{skip},async()=>{
+  const me=ok(await api("support","GET","/api/me")); assert.deepEqual([me.role,me.dept],["sale","support"]);
+  const j=ok(await api("support","POST","/api/orders",{customerId:"10",jobTitle:"Support job",ship:"2026-12-01",ret:"2026-12-02"}),"support creates");
+  let r=ok(await api("support","PATCH",`/api/orders/${j.id}`,{rev:0,useStart:"2026-12-01",useEnd:"2026-12-02"}),"usage dates").rev;
+  r=ok(await api("support","PUT",`/api/orders/${j.id}/lines`,{rev:r,lines:[{k:"a",t:2,pid:2,code:"CG",list:150,qty:1,days:1}]})).rev;
+  assert.equal(ok(await api("support","POST",`/api/orders/${j.id}/move`,{rev:r,to:"Order"})).status,"Order");
+  assert.equal((await api("support","GET","/api/cockpit")).status,403,"not admin");
+  ok(await api("admin","POST","/api/staff/invites",{email:"support.new@example.test",role:"support",name:"New Support"}),"invite as support");
+  assert.equal((await api("admin","POST","/api/staff/invites",{email:"x@example.test",role:"boss"})).body.error,"bad_role");
+});
+
+test("dates (Gene, 27 Oct): Store moves the return date from Quote up to Shipped, nothing else; a clash is reported",{skip},async()=>{
+  const j=ok(await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Ret job",ship:"2026-11-03",ret:"2026-11-03"}));
+  let r=ok(await api("sale","PUT",`/api/orders/${j.id}/lines`,{rev:0,lines:[{k:"a",t:1,pid:1,code:"M18",list:24000,qty:2,days:1}]})).rev;
+  r=ok(await api("sale","POST",`/api/orders/${j.id}/move`,{rev:r,to:"Order"})).rev;
+  for(const f of ["ship","useStart","useEnd","jobTitle"]) assert.equal((await api("store","PATCH",`/api/orders/${j.id}`,{rev:r,[f]:f==="jobTitle"?"x":"2026-11-03"})).status,403,f);
+  assert.equal((await api("crew","PATCH",`/api/orders/${j.id}`,{rev:r,ret:"2026-11-04"})).status,403);
+  // legacy 6900001 holds 3 of the 2 M18s on 1–2 Nov: moving this job's ship date onto 2 Nov is saved but reported short
+  const s=await api("sale","PATCH",`/api/orders/${j.id}`,{rev:r,ship:"2026-11-02"}); assert.deepEqual(ok(s).short,[{pid:1,short:2}]);
+  r=ok(await api("sale","PATCH",`/api/orders/${j.id}`,{rev:s.body.rev,ship:"2026-11-03"})).rev;
+  r=ok(await api("store","PATCH",`/api/orders/${j.id}`,{rev:r,ret:"2026-11-05"}),"store extends").rev;
+  assert.equal(ok(await api("admin","GET",`/api/orders/${j.id}`)).order.ret,"2026-11-05");
+  assert.equal((await api("store","PATCH",`/api/orders/${j.id}`,{rev:r,ret:"2026-11-01"})).body.error,"badDates");
 });
 
 test("header vs money permissions follow the artifact: accounting edits fees, not job details",{skip},async()=>{

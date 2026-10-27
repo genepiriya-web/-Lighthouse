@@ -196,7 +196,7 @@ export async function listCrewRates(c: PoolClient, who: Caller, q: string, limit
 }
 
 // ---------- team ----------
-const ROLES = ["admin", "sale", "store", "accounting", "crew"];
+const ROLES = ["admin", "sale", "support", "store", "accounting", "crew"];
 export async function listStaff(c: PoolClient) {
   return (await c.query(`select user_id as id, display_name as name, role, active, created_at as "createdAt" from staff order by active desc, role, display_name`)).rows;
 }

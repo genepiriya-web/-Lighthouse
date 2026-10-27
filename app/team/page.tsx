@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Shell, api, useApp } from "../ui/app";
 
-const ROLES = ["admin", "sale", "store", "accounting", "crew"];
+const ROLES = ["admin", "sale", "support", "store", "accounting", "crew"];
 function Team() {
   const { t, me } = useApp(); const [rows, setRows] = useState<any[] | null>(null); const [err, setErr] = useState("");
   const load = () => api("GET", "/api/staff").then(r => r.ok ? setRows(r.body.staff) : setErr(t(r.body?.error ?? "error")));

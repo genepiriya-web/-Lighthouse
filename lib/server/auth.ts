@@ -21,7 +21,9 @@ import { ApiError } from "./http";
 import { dbHost } from "./db";
 import type { Role } from "../logic";
 
-export interface Caller { id: string; name: string; role: Exclude<Role, "none">; }
+/** `role` is what permissions check. Support has Sales rights (Gene, 27 Oct), so a Support member's `role` is "sale" and
+ *  `dept` says "support"; for everyone else the two are the same. */
+export interface Caller { id: string; name: string; role: Exclude<Role, "none">; dept: string; }
 interface Identity { id: string; email: string | null; emailVerified: boolean; }
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
@@ -133,5 +135,6 @@ export async function requireStaff(c: PoolClient, req: Request): Promise<Caller>
     }
   }
   if (!r.rowCount || !r.rows[0].active) throw new ApiError(403, "not_staff");
-  return { id: who.id, name: r.rows[0].display_name, role: r.rows[0].role };
+  const dept: string = r.rows[0].role;
+  return { id: who.id, name: r.rows[0].display_name, role: dept === "support" ? "sale" : dept as Caller["role"], dept };
 }

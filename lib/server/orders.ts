@@ -11,7 +11,7 @@ import {
   type Line, type Order, type Status,
 } from "../logic";
 import { ApiError, bad } from "./http";
-import { priceBreaks, unapproved, canEditHeader, canEditMoney, STORE_ADD, HOLDING, STORE_ADD_TYPES, canEditItems, moveCheckV2, DEFAULT_SALES_PEOPLE, type PriceBreak, type PriceApproval } from "../rules";
+import { priceBreaks, unapproved, canEditField, canEditMoney, STORE_ADD, HOLDING, STORE_ADD_TYPES, canEditItems, moveCheckV2, DEFAULT_SALES_PEOPLE, type PriceBreak, type PriceApproval } from "../rules";
 import type { Caller } from "./auth";
 
 // ---------- shapes ----------
@@ -177,7 +177,7 @@ export async function updateOrder(c: PoolClient, who: Caller, id: string, body: 
   const unknownKeys = Object.keys(body).filter(k => k !== "rev" && !(k in HEADER_FIELDS) && !(k in MONEY_FIELDS));
   if (unknownKeys.length) throw bad("unknown_fields", unknownKeys.join(", "));
   if (!header.length && !money.length) throw bad("nothing_to_change");
-  if (header.length && !canEditHeader(who.role, o.status)) throw new ApiError(403, "rRole", "Your role can't change job details at this stage");
+  if (header.some(k => !canEditField(who.role, o.status, k))) throw new ApiError(403, "rRole", "Your role can't change job details at this stage");
   if (money.length && !canEditMoney(who.role, o.status)) throw new ApiError(403, "rRole", "Your role can't change discounts or fees at this stage");
   for (const k of header) patch[HEADER_FIELDS[k]] = cleanHeader(k, body[k]);
   for (const k of money) patch[MONEY_FIELDS[k]] = cleanMoney(k, body[k]);
@@ -188,7 +188,12 @@ export async function updateOrder(c: PoolClient, who: Caller, id: string, body: 
   for (const [col, v] of Object.entries(patch)) if (o[col] !== v) changed[col] = [o[col] ?? null, v];
   const rev = await finish(c, o, who, patch);
   await logActivity(c, who, id, "header", { changed });
-  return { id, rev };
+  // New dates on a job that holds (or has) the gear: say at once if something is now short. Not refused — the dates are
+  // what the client asked for; the clash shows here and still blocks the next status move as before.
+  let short: Array<{ pid: number; short: number }> = [];
+  if ((changed.ship || changed.ret) && ship && ret && [...HOLDING, "Shipped"].includes(o.status))
+    short = await stockIssues(c, { ...o, ship, ret }, await loadLines(c, id), true);
+  return { id, rev, ...(short.length && { short }) };
 }
 
 const LINE_NUM = ["list", "qty", "days", "disc", "ot", "otRate", "ratio"] as const;
@@ -288,8 +293,8 @@ export async function approvePrices(c: PoolClient, who: Caller, id: string, body
 }
 
 /** Items short on the job's dates, counting every job that holds stock — legacy and v2 alike (flaw 1). */
-async function stockIssues(c: PoolClient, o: OrderRow, lines: Line[]) {
-  if (!o.ship || !o.ret || ["Shipped", "Returned", "Draft INV", "Cancel"].includes(o.status)) return [];
+async function stockIssues(c: PoolClient, o: OrderRow, lines: Line[], evenShipped = false) {
+  if (!o.ship || !o.ret || ["Returned", "Draft INV", "Cancel", ...(evenShipped ? [] : ["Shipped"])].includes(o.status)) return [];
   const need: Record<number, number> = {};
   for (const l of lines) if (STOCKED_TYPES.includes(l.t) && l.pid) need[l.pid] = (need[l.pid] || 0) + (Number(l.qty) || 0);
   const pids = Object.keys(need).map(Number); if (!pids.length) return [];

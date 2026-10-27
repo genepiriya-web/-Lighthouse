@@ -3,17 +3,15 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Shell, api, useApp } from "../../ui/app";
+import { CustomerPick } from "../../ui/customer-pick";
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
 
 function NewJob() {
   const { t } = useApp(); const router = useRouter();
   const [f, setF] = useState<Record<string, string>>({ rentType: "Daily", tax: "Vat", ship: today(), ret: today() });
-  const [cq, setCq] = useState(""); const [hits, setHits] = useState<Array<{ id: string; name: string; code: string | null; flaggedNew: boolean }>>([]);
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false); const [sales, setSales] = useState<string[]>([]);
   useEffect(() => { api("GET", "/api/settings").then(r => r.ok && setSales(r.body.sales_people ?? [])); }, []);
-  useEffect(() => { if (cq.trim().length < 2 || f.customerName === cq) { setHits([]); return; }
-    const h = setTimeout(() => api("GET", `/api/customers?q=${encodeURIComponent(cq.trim())}`).then(r => r.ok && setHits(r.body.customers)), 200); return () => clearTimeout(h); }, [cq, f.customerName]);
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setErr(""); setBusy(true);
@@ -28,9 +26,7 @@ function NewJob() {
       <form className="sec" onSubmit={submit}>
         <div className="grid">
           <label className="field span2"><span>{t("h_cust")}</span>
-            <input className="inp" value={cq} autoComplete="off" onChange={e => { setCq(e.target.value); setF({ ...f, customerId: "", customerName: "" }); }} placeholder={t("searchCustName")} />
-            {hits.length > 0 && <div className="results">{hits.map(h => <button key={h.id} type="button" className="res btn ghost" style={{ justifyContent: "space-between", borderRadius: 0 }}
-              onClick={() => { setF({ ...f, customerId: h.id, customerName: h.name }); setCq(h.name); setHits([]); }}><span>{h.name}</span><span className="muted small">{h.code}{h.flaggedNew ? ` · ${t("flaggedNew")}` : ""}</span></button>)}</div>}
+            <CustomerPick value={f.customerName ?? ""} onPick={h => setF({ ...f, customerId: h.id, customerName: h.name })} />
           </label>
           <label className="field span2"><span>{t("h_title")}</span><input className="inp" value={f.jobTitle ?? ""} onChange={set("jobTitle")} /></label>
           <label className="field"><span>{t("h_jt")}</span><select className="inp" value={f.jobType ?? ""} onChange={set("jobType")}><option value="">{t("pick")}</option>{["CO-PRO", "FILM", "SP", "TVC", "TVD"].map(x => <option key={x}>{x}</option>)}</select></label>

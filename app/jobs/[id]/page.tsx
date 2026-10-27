@@ -6,8 +6,9 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Shell, api, useApp, stCls, money, fmtD } from "../../ui/app";
+import { CustomerPick } from "../../ui/customer-pick";
 import { TYPES, STATUSES, STOCKED_TYPES, orderTotals, typeTotals, lineCalc, chargeDays, defaultDisc, expandKit, syncChildren, type Line } from "../../../lib/logic";
-import { canEditHeader, canEditMoney, canStore, STORE_ADD, STORE_ADD_TYPES, MOVES_V2, canEditItems, moveCheckV2, unpriced, type PriceBreak } from "../../../lib/rules";
+import { canEditHeader, canEditMoney, canEditReturn, canStore, STORE_ADD, STORE_ADD_TYPES, MOVES_V2, canEditItems, moveCheckV2, unpriced, type PriceBreak } from "../../../lib/rules";
 
 type Any = Record<string, any>;
 interface Data { order: Any; lines: Array<Line & { k: string }>; activity: Any[]; needsCeo: PriceBreak[]; customer: { id: string; name: string; default_disc: number } | null;
@@ -64,7 +65,8 @@ function Sheet({ id }: { id: string }) {
   const idx = STATUSES.indexOf(o.status);
   const breakOf = (k: string) => d.needsCeo.filter(b => b.k === k);
 
-  const saveHeader = (k: string, v: string) => { const cur = String(o[col(k)] ?? ""); if (v === cur) return; const val = k === "dept" || k === "dpw" ? (v === "" ? null : +v) : v; run("PATCH", "", { [k]: val }); };
+  const shortMsg = (r: Any) => r?.short?.length && setErr(`${t("storeShort")} ${r.short.map((x: Any) => `${d.lines.find(l => l.pid === x.pid)?.code ?? "#" + x.pid} −${x.short}`).join(", ")}`);
+  const saveHeader = (k: string, v: string) => { const cur = String(o[col(k)] ?? ""); if (v === cur) return; const val = k === "dept" || k === "dpw" ? (v === "" ? null : +v) : v; run("PATCH", "", { [k]: val }).then(shortMsg); };
   const setLine = (k: string, patch: Partial<Line>) => setDraft(syncChildren(lines.map(l => l.k === k ? { ...l, ...patch } : l)) as Data["lines"]);
   const removeLine = (k: string) => setDraft(lines.filter(l => l.k !== k && l.parent !== k));
 
@@ -106,9 +108,12 @@ function Sheet({ id }: { id: string }) {
       <details className="sec" open={d.lines.length === 0} key={d.lines.length === 0 ? "open" : "closed"}>
         <summary><h3>{t("orderT")}<small>{t("created")} {fmtD(o.created_at)} · {o.created_by_name}</small></h3></summary>
         <div className="grid">{HEADER.map(([label, k, kind, opts]) => {
-          const v = String(o[col(k)] ?? ""); const dis = !editH;
+          if (k === "dpw" && o.rent_type !== "Weekly") return null; // days per week only matter for weekly rentals
+          const v = String(o[col(k)] ?? ""); const dis = !(editH || (k === "ret" && !legacy && canEditReturn(role, o.status)));
           if (k === "sale") opts = ["", ...sales, ...(v && !sales.includes(v) ? [v] : [])]; // a job keeps an older name it already has
           const span = ["jobTitle", "customerName", "billing"].includes(k) ? "field span2" : kind === "area" ? "field spanall" : "field";
+          if (k === "customerName") return <label key={k} className={span}><span>{t(label)}</span>
+            <CustomerPick value={v} disabled={dis} onPick={c => { if (c.id !== String(o.customer_id ?? "") || c.name !== v) run("PATCH", "", { customerId: c.id }); }} /></label>;
           return <label key={k} className={span}><span>{t(label)}</span>
             {kind === "select" ? <select className="inp" disabled={dis} defaultValue={v} key={v + o.rev} onChange={e => saveHeader(k, e.target.value)}>{opts!.map(x => <option key={x} value={x}>{k === "dept" ? DEPTS[x] || t("pick") : x || t("pick")}</option>)}</select>
               : kind === "area" ? <textarea className="inp" disabled={dis} defaultValue={v} key={v + o.rev} onBlur={e => saveHeader(k, e.target.value)} />

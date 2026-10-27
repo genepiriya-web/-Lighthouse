@@ -41,12 +41,16 @@ test("sale → store → CEO → store: special price blocks shipping until conf
   await as(page, "sale");
   await page.goto("/jobs/new");
   await page.getByPlaceholder("Search customer name or code").fill("Synthetic");
-  await page.getByRole("button", { name: /Synthetic Films C10/ }).click();
+  await expect(page.getByRole("option", { name: /Synthetic Films C10/ })).toBeVisible();
+  await noSidewaysScroll(page, "new job (customer dropdown open)");
+  await page.getByRole("option", { name: /Synthetic Films C10/ }).click();
   await page.locator("label", { hasText: "Job title" }).locator("input").fill("E2E phone job");
   await noSidewaysScroll(page, "new job");
   await page.getByRole("button", { name: "Create", exact: true }).click();
   await expect(page.getByRole("heading", { name: "E2E phone job" })).toBeVisible();
   await noSidewaysScroll(page, "job sheet (empty)");
+  await expect(page.locator("label", { hasText: "Days per week" })).toHaveCount(0); // Daily: no days-per-week field (Gene, 27 Oct)
+  await expect(page.getByPlaceholder("Search customer name or code")).toHaveValue("Synthetic Films");
 
   await page.getByPlaceholder("Search code or description").fill("M18");
   await page.locator(".res", { hasText: "M18" }).getByRole("button", { name: "+" }).click();
