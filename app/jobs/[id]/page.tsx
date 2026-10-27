@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Shell, api, useApp, stCls, money, fmtD } from "../../ui/app";
 import { CustomerPick } from "../../ui/customer-pick";
-import { orderTotalsV2 } from "../../../lib/pricing";
+import { orderTotalsV2, isGeneratorDesc, fuelItemFor, FUEL_HOURS } from "../../../lib/pricing";
 import { TYPES, STATUSES, STOCKED_TYPES, typeTotals, lineCalc, chargeDays, defaultDisc, expandKit, type Line } from "../../../lib/logic";
 import { canEditHeader, canEditMoney, canEditReturn, canStore, STORE_ADD, STORE_ADD_TYPES, MOVES_V2, canEditItems, moveCheckV2, unpriced, TRANSPORT_REMARKS, canDiscount, DISCOUNT_TYPES, isFuelLine, syncChildrenV2, type PriceBreak } from "../../../lib/rules";
 
@@ -226,12 +226,20 @@ function AddItem({ tt, order, customer, noPrice, onAdd }: { tt: number; order: A
   const addCrew = (r: Any) => { const start = order.use_start || order.ship, end = order.use_end || order.ret;
     onAdd([{ k: uid(), t: tt, pid: null, crewId: String(r.crewId), code: r.posCode ?? "", desc: (r.posName ?? "") + (r.name || r.nick ? " · " + (r.name || r.nick) : ""), list: +r.price || 0,
       otRate: +r.priceOt || 0, ot: 0, qty: 1, days: chargeDays(start, end, order.rent_type, order.dpw) || 1, disc: 0, foc: false, sb: false, start, end, parent: null, remark: "" }]); setQ(""); setHits([]); };
-  const add = (p: Any) => {
+  const add = async (p: Any) => {
     const start = order.use_start || order.ship, end = order.use_end || order.ret;
     const parent: Line & { k: string } = { k: uid(), t: p.type, pid: p.id, code: p.code, desc: p.desc, list: +p.price || 0, qty: 1, days: chargeDays(start, end, order.rent_type, order.dpw) || 1,
       disc: p.type === 1 ? defaultDisc({ discountable: p.discountable, maxDisc: p.maxDisc }, customer?.default_disc ?? 0) : 0, foc: false, sb: false, start, end, parent: null, remark: "" };
-    const cat = new Map<number, { code: string; desc: string }>((p.kitProducts ?? []).map((x: Any) => [x.id, { code: x.code, desc: x.desc }]));
-    onAdd([parent, ...expandKit(parent, p.kit ?? [], cat, uid) as Array<Line & { k: string }>]); setQ(""); setHits([]);
+    const cat = new Map<number, { code: string; desc: string; price?: number }>((p.kitProducts ?? []).map((x: Any) => [x.id, { code: x.code, desc: x.desc, price: +x.price || 0 }]));
+    // Generator fuel (Gene, 27 Oct): the fuel-hour part takes its size's hourly rate from the catalog when the package gives
+    // it no price, and a generator whose package has no fuel part gets one by size. Hours and price stay editable.
+    let kids = (expandKit(parent, p.kit ?? [], cat, uid) as Array<Line & { k: string }>).map(k => isFuelLine(k) && !(+k.list! > 0) ? { ...k, list: cat.get(k.pid!)?.price ?? 0 } : k);
+    if (p.type === 4 && isGeneratorDesc(p.desc) && !kids.some(isFuelLine)) {
+      const r = await api("GET", `/api/products?type=4&q=${encodeURIComponent("Gasoline")}&limit=100`); const f = r.ok ? fuelItemFor(p.desc, r.body.products as Any[]) : null;
+      if (f) kids = [...kids, { k: uid(), t: parent.t, pid: f.id, code: f.code, desc: f.desc, list: +f.price || 0, qty: FUEL_HOURS * (+parent.qty! || 1), ratio: FUEL_HOURS, days: parent.days,
+        disc: 0, foc: false, sb: false, start, end, parent: parent.k, remark: "" }];
+    }
+    onAdd([parent, ...kids]); setQ(""); setHits([]);
   };
   return <div className="field"><span>{t("addItem")}</span>
     <div className="row"><input className="inp" style={{ flex: 1, minWidth: 0 }} type="search" placeholder={t(crew ? "searchCrew" : "searchItemName")} value={q} onChange={e => setQ(e.target.value)} />

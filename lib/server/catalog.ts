@@ -13,7 +13,7 @@ export async function searchProducts(c: PoolClient, q: { q?: string; type?: numb
   args.push(Math.max(1, Math.min(200, q.limit ?? 40)));
   const r = await c.query(`select p.id, p.code, p.description as "desc", p.type, p.dept, p.price, p.discountable, p.max_disc as "maxDisc", p.stock,
       coalesce((select json_agg(json_build_array(k.child_id, k.ratio, k.price) order by k.child_id) from kit_parts k where k.parent_id = p.id), '[]') as kit,
-      coalesce((select json_agg(json_build_object('id', ch.id, 'code', ch.code, 'desc', ch.description)) from kit_parts k join products ch on ch.id = k.child_id where k.parent_id = p.id), '[]') as "kitProducts"
+      coalesce((select json_agg(json_build_object('id', ch.id, 'code', ch.code, 'desc', ch.description, 'price', ch.price)) from kit_parts k join products ch on ch.id = k.child_id where k.parent_id = p.id), '[]') as "kitProducts"
     from products p ${where.length ? "where " + where.join(" and ") : ""} order by p.sort nulls last, p.code limit $${args.length}`, args);
   return r.rows;
 }

@@ -89,6 +89,14 @@ test("sale → store → CEO → store: special price blocks shipping until conf
   await expect(page.getByPlaceholder("Pick or type a remark")).toHaveValue("ค่าน้ำมัน ทางด่วน เก็บสด");
   await page.locator(".lrow:not(.head):not(.child)").first().getByRole("button", { name: "Remove" }).click(); // the rest of the walk uses the M18 only
   await expect(page.getByText(/saves itself within 5 seconds/)).toHaveCount(0, { timeout: 9000 });
+  // generator fuel by size (Gene, 27 Oct): a 45 KVA generator with no fuel part gets "Hour Gasoline 45 KVA" at the catalog's 300/hour × 12
+  await page.getByPlaceholder("Search item name").fill("Generator 45");
+  await page.locator(".res", { hasText: "Generator 45 KVA" }).getByRole("button", { name: "+" }).click();
+  const fuelRow = page.locator(".lrow.child", { hasText: "Hour Gasoline 45 KVA" });
+  await expect(fuelRow.locator("input").nth(0)).toHaveValue("300"); await expect(fuelRow.locator("input").nth(1)).toHaveValue("12");
+  await expect(fuelRow.locator("input").nth(0)).toBeEnabled(); await expect(fuelRow.getByText("typed in")).toBeVisible();
+  await page.locator(".lrow:not(.head):not(.child)", { hasText: "Generator 45 KVA" }).getByRole("button", { name: "Remove" }).click();
+  await expect(page.getByText(/saves itself within 5 seconds/)).toHaveCount(0, { timeout: 9000 });
   await page.getByRole("tab", { name: /Equipment/ }).click();
   await noSidewaysScroll(page, "job sheet (items)");
 

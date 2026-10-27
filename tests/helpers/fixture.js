@@ -10,7 +10,8 @@ function writeFixture(dir){
   const w=(rel,obj)=>{ const f=path.join(dir,rel); fs.mkdirSync(path.dirname(f),{recursive:true}); fs.writeFileSync(f,JSON.stringify(obj)); };
   const cols=["id","code","desc","dept","type","price","discountable","maxDisc","stock","oneHand","damageLost","serial","unit","weight","sort"];
   w("catalog/c0.json",{cols,rows:[[1,"M18","Synthetic HMI 18K",1,1,24000,1,0,2,2,0,"","SET",null,1.1],[2,"CG","Cable guard",2,2,150,0,0,10,10,0,"","PC",null,1.2],
-    [3,"GEN","Generator package",1,4,9000,1,20,1,1,0,"","SET",null,2],[4,"HR1","Hour fuel",1,4,800,0,0,99,99,0,"","HR",null,3]]});
+    [3,"GEN","Generator package",1,4,9000,1,20,1,1,0,"","SET",null,2],[4,"HR1","Hour fuel",1,4,800,0,0,99,99,0,"","HR",null,3],
+    [5,"G45","Generator 45 KVA (T1) G45",1,4,5000,1,0,1,1,0,"","SET",null,4],[6,"HG45","Hour Gasoline 45 KVA",1,4,300,0,0,99,99,0,"","HR",null,5]]});
   w("kits/k0.json",{kits:{3:[[2,4,150],[1,1],[999,1]]}});
   w("customers/k0.json",{rows:[{id:10,code:"C10",name:"Synthetic Films",type:"TVC",disc:20,addr:"1 Test Rd",phone:"000",fax:"",tax:syntheticId(1)},
     {id:11,code:"C11",name:"Example Studio",type:"FILM ",disc:0,addr:"",phone:"",fax:"",tax:""}]});

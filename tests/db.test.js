@@ -53,7 +53,7 @@ test("importer: synthetic export loads, and a second run leaves identical rows",
   const r1=await importExport(c,fixture); const n1=await domainCounts(); const f1=await fingerprint();
   const r2=await importExport(c,fixture); const n2=await domainCounts(); const f2=await fingerprint();
   assert.deepEqual(n2,n1); assert.deepEqual(f2,f1); assert.deepEqual(r2.skipped,r1.skipped);
-  assert.equal(n1.products,4); assert.equal(n1.orders,2); assert.equal(n1.order_lines,4); assert.equal(n1.kit_parts,2); assert.equal(n1.activity,2);
+  assert.equal(n1.products,6); assert.equal(n1.orders,2); assert.equal(n1.order_lines,4); assert.equal(n1.kit_parts,2); assert.equal(n1.activity,2);
   assert.equal(r1.skipped.kitPartUnknownProduct,1);
   const p=(await c.query("select is_fuel_hour, sort from products where id=4")).rows[0]; assert.equal(p.is_fuel_hour,true); assert.equal(+p.sort,3);
   assert.equal((await c.query("select dept from crew_rates where crew_id='500' and position_id=7")).rows[0].dept,1);

@@ -25,3 +25,14 @@ test("the HTML quotation and the PDF form print the same v2 total",()=>{
   assert.ok(D.docBody(o,lines,"quote",true,{today:"2026-10-27"}).includes(`<b>${fmt(G.total)}</b>`));
   assert.ok(Q.quoteForm(o,lines,"disc",{}).includes(`${fmt(G.total)} Baht`)&&Q.quoteForm(o,lines,"disc",{}).includes(`-${fmt(G.extra)} Baht`));
 });
+
+test("generator fuel by size (Gene, 27 Oct): match the Hour Gasoline item with the same KVA; nothing for other items",()=>{
+  const {kvaOf,isGeneratorDesc,fuelItemFor,isFuelDesc}=require("../lib/pricing.js");
+  const items=[{id:1,desc:"Hour  Gasoline 45  KVA.",price:300},{id:2,desc:"Hour Gasoline 60 KVA ",price:360},{id:3,desc:"Hour Gasoline 183KVA ",price:1000},{id:4,desc:"Re-Fuel Service Charge",price:1500}];
+  assert.equal(kvaOf("Generator 45 KVA (1564) G16"),45); assert.equal(kvaOf("Generator 125KVA (97-8459) G6"),125); assert.equal(kvaOf("Cable Guard"),null);
+  assert.ok(isGeneratorDesc("Generator 270 KVA.(96-7592) G12")&&isGeneratorDesc("Ultra Silent Generator 150 KVA."));
+  assert.ok(!isGeneratorDesc("Mini Generator 3 KVA")&&!isGeneratorDesc("Generator Driver - Test")&&!isGeneratorDesc("Adapter for Gen 7KVA"));
+  assert.equal(fuelItemFor("Generator 45 KVA (1564) G16",items).price,300); assert.equal(fuelItemFor("Generator 183 KVA (96-6876) G9",items).price,1000);
+  assert.equal(fuelItemFor("Ultra Silent Generator 150 KVA.",items),null,"no 150 KVA rate in the catalog: nothing guessed");
+  assert.ok(isFuelDesc("Hour Gasoline 60 KVA")&&!isFuelDesc("Re-Fuel Service Charge"));
+});
