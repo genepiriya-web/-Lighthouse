@@ -11,6 +11,7 @@ import { autoFill } from "../boardform";
 export const BOARD_FIELDS = ["loc", "onloc", "gaffer", "head", "crew", "trucks", "gens", "remark"] as const;
 type Field = typeof BOARD_FIELDS[number];
 const isDay = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v));
+export const ODD_DAYS = 120;
 export const canEditBoard = (role: string) => role === "admin" || role === "sale" || role === "store"; // sale includes Support
 
 export async function getBoard(c: PoolClient, day: unknown) {
@@ -19,7 +20,7 @@ export async function getBoard(c: PoolClient, day: unknown) {
       o.note, o.ship, o.ret, o.use_start, o.use_end, o.addition_of, a.no as addition_of_no
     from orders o left join orders a on a.id = o.addition_of
     where o.status not in ('Quote','Cancel') and coalesce(o.use_start, o.ship) <= $1 and coalesce(o.use_end, o.ret) >= $1
-    order by o.dept nulls last, o.no`, [day])).rows;
+    order by o.dept nulls last, coalesce(o.use_start, o.ship), o.no`, [day])).rows;
   const ids = jobs.map(j => j.id);
   const lines = ids.length ? (await c.query(`select l.order_id, l.t, l.description as "desc", l.code, l.qty, l.parent_k, cr.nick
       from order_lines l left join crew cr on cr.id = l.crew_id where l.order_id = any($1) order by l.order_id, l.sort`, [ids])).rows : [];
@@ -35,7 +36,11 @@ export async function getBoard(c: PoolClient, day: unknown) {
       // vehicles and generators from its transport lines, the gaffer and note from the job.
       const a = autoFill((L.get(j.id) ?? []).filter(l => !l.parent_k));
       const auto = { ...a, gaffer: a.gaffer || j.gaffer || "", remark: j.note || "" };
-      return { ...j, section: j.job_type === "TVD" ? "drama" : "ads", auto, entry: E.get(j.id) ?? null, prev: P.get(j.id) ?? null };
+      // Jobs whose dates span more than ODD_DAYS are almost always old jobs left open with placeholder dates (e.g. 2024 jobs
+      // at Order from 25/12/2025 to 31/12/2026); they are listed apart so they don't crowd every day's board.
+      const from = String(j.use_start ?? j.ship ?? "").slice(0, 10), to = String(j.use_end ?? j.ret ?? "").slice(0, 10);
+      const odd = !!from && !!to && (Date.parse(to) - Date.parse(from)) / 864e5 > ODD_DAYS;
+      return { ...j, section: j.job_type === "TVD" ? "drama" : "ads", odd, auto, entry: E.get(j.id) ?? null, prev: P.get(j.id) ?? null };
     }),
   };
 }
