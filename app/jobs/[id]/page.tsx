@@ -183,21 +183,22 @@ function AddItem({ tt, order, customer, onAdd }: { tt: number; order: Any; custo
 }
 
 /** Quotation / Draft INV / Item list, with or without discount — rendered by the server (lib/docs.js), as on the artifact.
- *  The quotation also comes as a PDF in the company's paper-form layout (lib/quoteform.js).
+ *  The quotation and item list also come as PDFs in the company's paper-form layout (lib/quoteform.js), and the crew job
+ *  sheet (write-in boxes, no prices) as a PDF only.
  *  The preview is a sandboxed frame: no scripts, whatever the old system's templates contain. */
 function Docs({ id }: { id: string }) {
-  const { t } = useApp(); const [kind, setKind] = useState<"quote" | "draft" | "items">("quote"); const [disc, setDisc] = useState<"1" | "net" | "0">("1"); const [open, setOpen] = useState(false);
+  const { t } = useApp(); const [kind, setKind] = useState<"quote" | "draft" | "items" | "job">("quote"); const [disc, setDisc] = useState<"1" | "net" | "0">("1"); const [open, setOpen] = useState(false);
   const d = kind === "quote" || disc !== "net" ? disc : "1"; // "hide discount" exists only for the quotation PDF
   const url = `/api/orders/${encodeURIComponent(id)}/document?kind=${kind}&disc=${d}`;
   return <section className="sec"><h3>{t("docs")}</h3>
-    <div className="row"><div className="seg">{([["quote", "docQuote"], ["draft", "docDraft"], ["items", "docItems"]] as const).map(([k, l]) =>
+    <div className="row"><div className="seg">{([["quote", "docQuote"], ["draft", "docDraft"], ["items", "docItems"], ["job", "docJob"]] as const).map(([k, l]) =>
       <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}>{t(l)}</button>)}</div>
-      {kind !== "items" && <div className="seg">{([["1", "withDisc"], ...(kind === "quote" ? [["net", "netDisc"]] as const : []), ["0", "fullPrice"]] as const).map(([v, l]) =>
+      {(kind === "quote" || kind === "draft") && <div className="seg">{([["1", "withDisc"], ...(kind === "quote" ? [["net", "netDisc"]] as const : []), ["0", "fullPrice"]] as const).map(([v, l]) =>
         <button key={v} type="button" aria-pressed={d === v} onClick={() => setDisc(v)}>{t(l)}</button>)}</div>}
-      {kind === "quote" && <a className="btn primary" href={`${url}&format=pdf`} download>{t("download")} PDF</a>}
-      {d !== "net" && <a className={`btn ${kind === "quote" ? "" : "primary"}`} href={url} download>{t("download")} .html</a>}</div>
-    <details onToggle={e => setOpen((e.target as HTMLDetailsElement).open)}><summary className="small muted" style={{ cursor: "pointer" }}>{t("preview")}</summary>
-      {open && <iframe title={t("preview")} src={`${url.replace("disc=net", "disc=1")}&inline=1`} sandbox="" style={{ width: "100%", height: 520, border: "1px solid var(--line)", borderRadius: 6, background: "#fff" }} />}</details>
+      {kind !== "draft" && <a className="btn primary" href={`${url}&format=pdf`} download>{t("download")} PDF</a>}
+      {d !== "net" && kind !== "job" && <a className={`btn ${kind === "draft" ? "primary" : ""}`} href={url} download>{t("download")} .html</a>}</div>
+    {kind !== "job" && <details onToggle={e => setOpen((e.target as HTMLDetailsElement).open)}><summary className="small muted" style={{ cursor: "pointer" }}>{t("preview")}</summary>
+      {open && <iframe title={t("preview")} src={`${url.replace("disc=net", "disc=1")}&inline=1`} sandbox="" style={{ width: "100%", height: 520, border: "1px solid var(--line)", borderRadius: 6, background: "#fff" }} />}</details>}
   </section>;
 }
 

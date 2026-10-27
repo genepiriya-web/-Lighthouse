@@ -56,3 +56,15 @@ test("job text is escaped and templates go through the sanitiser; no scripts or 
   assert.ok(!/<(script|img)\b/i.test(h)&&!/<[^>]*\son\w+=/i.test(h)); assert.ok(h.includes("&lt;img src=x onerror=alert(1)&gt;")); assert.ok(h.includes("<p>Pay in <b>30 days</b></p>"));
   assert.ok(!Q.quoteForm(order,lines,true,{...x,logo:'x" onload="y'}).includes('" onload="'));
 });
+
+test("store item list and crew job sheet (Gene, 27 Oct): everything but prices; one write-in row per person per day",()=>{
+  const prices=[...new Set(lines.flatMap(l=>[l.list,l.otRate]).filter(v=>+v>0).map(fmt))];
+  const it=Q.itemSheet(order,lines,x), job=Q.jobSheet(order,lines,x);
+  for(const h of [it,job]){ for(const p of prices) assert.ok(!h.includes(p),`price ${p} shows`); assert.ok(!/Baht|Price|Disc|Total/.test(h.replace(/<style>[\s\S]*?<\/style>/,""))); }
+  assert.ok(it.includes(">Item List<")&&it.includes("Stand By")&&it.includes(">S360<")&&it.includes("Test Person"),"items, codes, standby and crew names are there");
+  assert.ok(job.includes(">Job Sheet<")&&job.includes("On Location")&&job.includes("OT (hr.)"));
+  assert.equal((job.match(/____ : ____<\/td><td class="c">____ : ____/g)||[]).length,1*2+3*2,"1 head × 2 days + 3 electricians × 2 days");
+  assert.equal((job.match(/<tbody class="person">/g)||[]).length,4,"one block per person (qty 3 → 3 people)");
+  assert.ok(!Q.jobSheet({...order,jobTitle:"<b onclick=x>"},[{k:"c",t:5,desc:"<script>",qty:1,days:1}],x).match(/<script|<b onclick/));
+  assert.equal(Q.pdfName(order,true,"items"),"6909001-016-item-list.pdf"); assert.equal(Q.pdfName(order,true,"job"),"6909001-016-job-sheet.pdf");
+});

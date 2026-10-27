@@ -34,7 +34,7 @@ test("documents: any staff downloads; same totals as logic.js; legacy jobs too; 
   assert.equal((await raw("store","/api/orders/nope/document")).status,404);
 });
 
-test("quotation PDF (paper form): any staff, a real PDF with the order's revision in its name; quotation only",{skip},async()=>{
+test("PDFs (paper form): quotation in 3 views, store item list, crew job sheet; any staff; revision in the name",{skip},async()=>{
   assert.equal((await raw(null,"/api/orders/6900001/document?format=pdf")).status,401);
   const r=await fetch("http://127.0.0.1:3924/api/orders/6900001/document?kind=quote&disc=1&format=pdf",{headers:{"x-dev-user":S.uid.crew}});
   assert.equal(r.status,200); assert.equal(r.headers.get("content-type"),"application/pdf");
@@ -44,6 +44,11 @@ test("quotation PDF (paper form): any staff, a real PDF with the order's revisio
   assert.match(nod.headers.get("content-disposition"),/^inline; filename="6900001-\d{3}-quotation-nodisc\.pdf"$/); await nod.arrayBuffer();
   const net=await fetch("http://127.0.0.1:3924/api/orders/6900001/document?disc=net&format=pdf",{headers:{"x-dev-user":S.uid.sale}});
   assert.match(net.headers.get("content-disposition"),/filename="6900001-\d{3}-quotation-net\.pdf"$/); assert.equal(Buffer.from(await net.arrayBuffer()).subarray(0,5).toString(),"%PDF-");
-  assert.equal((await raw("store","/api/orders/6900001/document?kind=items&format=pdf")).status,422);
+  for(const [kind,file] of [["items","item-list"],["job","job-sheet"]]){ // store's list and the crew job sheet: no prices, any staff
+    const r=await fetch(`http://127.0.0.1:3924/api/orders/6900001/document?kind=${kind}&format=pdf`,{headers:{"x-dev-user":S.uid.store}});
+    assert.equal(r.status,200,kind); assert.match(r.headers.get("content-disposition"),new RegExp(`filename="6900001-\\d{3}-${file}\\.pdf"$`));
+    assert.equal(Buffer.from(await r.arrayBuffer()).subarray(0,5).toString(),"%PDF-"); }
+  assert.equal((await raw("store","/api/orders/6900001/document?kind=job")).status,422,"the job sheet is a PDF only");
+  assert.equal((await raw("store","/api/orders/6900001/document?kind=draft&format=pdf")).status,422);
   assert.equal((await raw("store","/api/orders/nope/document?format=pdf")).status,404);
 });
