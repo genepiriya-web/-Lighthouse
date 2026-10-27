@@ -3,6 +3,7 @@ import type { DocOrder, DocContext } from "./docs";
 
 export interface QuoteFormContext { company?: DocContext["company"]; remarks?: DocContext["remarks"]; footers?: DocContext["footers"];
   printedAt?: string; printedBy?: string; customerCode?: string | null; logo?: string | null; }
+export const STANDARD_REMARK: string[];
 export type QuoteView = "disc" | "net" | "list";
 export const VIEWS: QuoteView[];
 export function quoteForm(o: DocOrder, lines: Line[], view: QuoteView | boolean, x?: QuoteFormContext): string;

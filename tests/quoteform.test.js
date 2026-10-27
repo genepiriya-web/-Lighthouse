@@ -68,3 +68,10 @@ test("store item list and crew job sheet (Gene, 27 Oct): everything but prices; 
   assert.ok(!Q.jobSheet({...order,jobTitle:"<b onclick=x>"},[{k:"c",t:5,desc:"<script>",qty:1,days:1}],x).match(/<script|<b onclick/));
   assert.equal(Q.pdfName(order,true,"items"),"6909001-016-item-list.pdf"); assert.equal(Q.pdfName(order,true,"job"),"6909001-016-job-sheet.pdf");
 });
+
+test("page 1 always has a remark: the job's own template, or the company's standard remark word for word (Gene, 27 Oct)",()=>{
+  const std=Q.quoteForm({...order,remarkId:null},lines,"disc",x); const s1=std.indexOf('<section class="sheet">'); const p1=std.slice(s1,std.indexOf('<section class="sheet">',s1+1));
+  for(const l of Q.STANDARD_REMARK) assert.ok(p1.includes(l.replace(/&/g,"&amp;")),`missing: ${l}`);
+  assert.equal(Q.STANDARD_REMARK.length,7);
+  const own=Q.quoteForm(order,lines,"disc",x); assert.ok(own.includes("Pay in <b>30 days</b>")&&!own.includes(Q.STANDARD_REMARK[0]),"a chosen template replaces it");
+});
