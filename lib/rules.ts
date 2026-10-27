@@ -6,7 +6,7 @@
 //   not discountable → no discount at all; maxDisc > 0 → that cap; maxDisc 0 → no cap.
 // Lines without a catalog price to compare against are exempt, as in the Cockpit: package parts (priced by the kit),
 // crew and freelance (priced by crew rates), lines with no product, and FOC/standby lines (priced 0 by design).
-import { BLOCKING, MOVES, moveCheck, canEditLines, type Line, type Order, type Product, type Role, type Status } from "./logic";
+import { BLOCKING, MOVES, moveCheck, canEditLines, syncChildren, type Line, type Order, type Product, type Role, type Status } from "./logic";
 
 export interface PriceBreak { k: string; code: string; rule: "below_catalog" | "no_discount" | "over_max_disc"; value: number; limit: number; }
 
@@ -81,3 +81,15 @@ export const TRANSPORT_REMARKS = ["ค่าน้ำมัน ทางด่�
 // are saved: src/logic.js still prices any discount it is given, so old-system jobs keep the discounts they were made with.
 export const DISCOUNT_TYPES = [1, 6];
 export const canDiscount = (t: number) => DISCOUNT_TYPES.includes(Number(t));
+
+// ---------- Generator fuel hours (Gene, 27 Oct 2026) ----------
+// A fuel-hour line ("Hour …" item, as logic.js and the importer read it) inside a package is typed in by hand: Sales sets
+// its price and quantity (hours), and the package no longer recalculates its quantity. Its days still follow the package.
+export const isFuelLine = (l: Pick<Line, "desc">) => /^hour\s/i.test(String(l.desc ?? "").trim());
+/** logic.js syncChildren, except fuel-hour parts keep the quantity they were given. */
+export function syncChildrenV2<T extends Line>(lines: T[]): T[] {
+  const keep = new Map(lines.filter(l => l.parent && isFuelLine(l)).map(l => [l, l.qty]));
+  const out = syncChildren(lines) as T[];
+  for (const l of out) if (keep.has(l)) l.qty = keep.get(l);
+  return out;
+}

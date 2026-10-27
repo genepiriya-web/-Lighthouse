@@ -224,6 +224,18 @@ test("discounts on Equipment and Sub-rent only (Gene, 27 Oct): a discount on any
   assert.ok(ok(await api("sale","GET",`/api/orders/${cp.id}`)).lines.every(l=>l.t===1||!l.disc));
 });
 
+test("generator fuel hours (Gene, 27 Oct): a fuel-hour package part keeps the price and hours typed in; other parts follow the package",{skip},async()=>{
+  const j=ok(await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Fuel job"}));
+  const lines=q=>[{k:"g",t:4,pid:3,code:"GEN",desc:"Generator package",list:9000,qty:q,days:2},{k:"c",t:4,pid:2,code:"CG",desc:"Cable guard",list:0,qty:99,ratio:4,days:9,parent:"g"},
+    {k:"h",t:4,pid:4,code:"HR1",desc:"Hour fuel",list:850,qty:7,ratio:1,days:9,parent:"g"}];
+  let r=ok(await api("sale","PUT",`/api/orders/${j.id}/lines`,{rev:0,lines:lines(1)})).rev;
+  let L2=ok(await api("sale","GET",`/api/orders/${j.id}`)).lines; const by=k=>L2.find(l=>l.k===k);
+  assert.deepEqual([by("c").qty,by("c").days],[4,2],"a normal part follows the package"); assert.deepEqual([by("h").qty,by("h").list,by("h").days],[7,850,2],"fuel: typed hours and price kept, days follow");
+  ok(await api("sale","PUT",`/api/orders/${j.id}/lines`,{rev:r,lines:lines(2)}));
+  L2=ok(await api("sale","GET",`/api/orders/${j.id}`)).lines; assert.deepEqual([by("c").qty,by("h").qty],[8,7]);
+  assert.equal(ok(await api("sale","GET",`/api/orders/${j.id}`)).order.totals.sub,L.r2(9000*2*2+850*7*2));
+});
+
 test("header vs money permissions follow the artifact: accounting edits fees, not job details",{skip},async()=>{
   const j=ok(await api("sale","POST","/api/orders",{customerId:"10",jobTitle:"Money job"}));
   ok(await api("sale","PUT",`/api/orders/${j.id}/lines`,{rev:0,lines:[{k:"a",t:2,pid:2,list:150,qty:4,days:1}]}));

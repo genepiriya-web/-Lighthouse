@@ -8,8 +8,8 @@ import { useRouter } from "next/navigation";
 import { Shell, api, useApp, stCls, money, fmtD } from "../../ui/app";
 import { CustomerPick } from "../../ui/customer-pick";
 import { orderTotalsV2 } from "../../../lib/pricing";
-import { TYPES, STATUSES, STOCKED_TYPES, typeTotals, lineCalc, chargeDays, defaultDisc, expandKit, syncChildren, type Line } from "../../../lib/logic";
-import { canEditHeader, canEditMoney, canEditReturn, canStore, STORE_ADD, STORE_ADD_TYPES, MOVES_V2, canEditItems, moveCheckV2, unpriced, TRANSPORT_REMARKS, canDiscount, DISCOUNT_TYPES, type PriceBreak } from "../../../lib/rules";
+import { TYPES, STATUSES, STOCKED_TYPES, typeTotals, lineCalc, chargeDays, defaultDisc, expandKit, type Line } from "../../../lib/logic";
+import { canEditHeader, canEditMoney, canEditReturn, canStore, STORE_ADD, STORE_ADD_TYPES, MOVES_V2, canEditItems, moveCheckV2, unpriced, TRANSPORT_REMARKS, canDiscount, DISCOUNT_TYPES, isFuelLine, syncChildrenV2, type PriceBreak } from "../../../lib/rules";
 
 type Any = Record<string, any>;
 interface Data { order: Any; lines: Array<Line & { k: string }>; activity: Any[]; needsCeo: PriceBreak[]; customer: { id: string; name: string; default_disc: number } | null;
@@ -103,7 +103,7 @@ function Sheet({ id }: { id: string }) {
     if (g?.ok) { setD(g.body); setDraft(setAll(g.body.lines)); }
   };
   const saveHeader = (k: string, v: string) => { const cur = String(o[col(k)] ?? ""); if (v === cur) return; const val = k === "dept" || k === "dpw" ? (v === "" ? null : +v) : v; run("PATCH", "", { [k]: val }).then(shortMsg); };
-  const setLine = (k: string, patch: Partial<Line>) => setDraft(syncChildren(lines.map(l => l.k === k ? { ...l, ...patch } : l)) as Data["lines"]);
+  const setLine = (k: string, patch: Partial<Line>) => setDraft(syncChildrenV2(lines.map(l => l.k === k ? { ...l, ...patch } : l)));
   const removeLine = (k: string) => setDraft(lines.filter(l => l.k !== k && l.parent !== k));
 
   return (
@@ -164,11 +164,11 @@ function Sheet({ id }: { id: string }) {
           return <button key={x.id} className="ttab" type="button" role="tab" aria-selected={tt === x.id} onClick={() => setTt(x.id)}>{typeLabel(x.id)}{n ? <span className="n">{n}</span> : null}</button>; })}</div>
         <div>
           <div className="lrow head"><span>{t("i_desc")}</span>{noPrice ? <span /> : <span>{t("i_list")}</span>}<span>{t("i_qty")}</span><span>{t("i_days")}</span>{noPrice ? <span /> : <span>{tt === 5 || tt === 7 ? t("i_ot") : t("i_disc")}</span>}<span style={{ textAlign: "right" }}>{noPrice ? "" : t("i_total")}</span><span /></div>
-          {lines.filter(l => l.t === tt).map(l => { const child = !!l.parent; const c = lineCalc(l); const crew = l.t === 5 || l.t === 7; const can = editL && !child; const br = breakOf(l.k);
+          {lines.filter(l => l.t === tt).map(l => { const child = !!l.parent; const c = lineCalc(l); const crew = l.t === 5 || l.t === 7; const can = editL && !child; const fuel = child && isFuelLine(l); const br = breakOf(l.k);
             const num = (f: keyof Line, step = "1") => <label><span className="lbl">{t(f === "list" ? "i_list" : f === "qty" ? "i_qty" : f === "days" ? "i_days" : f === "ot" ? "i_ot" : "i_disc")}</span>
-              <input className="inp cell num" type="number" min={0} step={step} disabled={!can || (f === "disc" && !canDiscount(l.t))} title={f === "disc" && !canDiscount(l.t) ? t("discTypesOnly") : undefined} value={String(l[f] ?? 0)} onChange={e => setLine(l.k, { [f]: Math.max(0, parseFloat(e.target.value) || 0) } as Partial<Line>)} /></label>;
+              <input className="inp cell num" type="number" min={0} step={step} disabled={!(can || (editL && fuel && (f === "list" || f === "qty"))) || (f === "disc" && !canDiscount(l.t))} title={f === "disc" && !canDiscount(l.t) ? t("discTypesOnly") : undefined} value={String(l[f] ?? 0)} onChange={e => setLine(l.k, { [f]: Math.max(0, parseFloat(e.target.value) || 0) } as Partial<Line>)} /></label>;
             return <div key={l.k} className={`lrow ${child ? "child" : ""}`} style={br.length ? { background: "color-mix(in srgb,var(--warn) 10%,transparent)" } : undefined}>
-              <span className="desc">{l.desc || l.code}{crew && l.otRate ? <span className="muted small"> · {t("otPerHr", { r: "฿" + money(+l.otRate) })}</span> : null}{l.foc ? <span className="tag"> FOC</span> : null}{l.sb ? <span className="tag"> SB</span> : null}{child ? <span className="muted small"> · {t("kitOf")}</span> : null}</span>
+              <span className="desc">{l.desc || l.code}{crew && l.otRate ? <span className="muted small"> · {t("otPerHr", { r: "฿" + money(+l.otRate) })}</span> : null}{l.foc ? <span className="tag"> FOC</span> : null}{l.sb ? <span className="tag"> SB</span> : null}{child ? <span className="muted small"> · {t("kitOf")}</span> : null}{fuel ? <span className="tag"> {t("fuelManual")}</span> : null}</span>
               {noPrice ? <span /> : num("list", "0.01")}{num("qty")}{num("days", "0.5")}{noPrice ? <span /> : crew ? num("ot", "0.5") : num("disc", "0.01")}
               <span className="tot num" style={{ textAlign: "right" }}>{noPrice ? "" : `฿ ${money(c.total)}`}</span>
               <span>{can && <button className="btn sm ghost" type="button" onClick={() => removeLine(l.k)} aria-label={t("remove")}>✕</button>}</span>

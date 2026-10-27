@@ -7,12 +7,12 @@
 import "server-only";
 import type { PoolClient } from "pg";
 import {
-  STOCKED_TYPES, MOVES, orderTotals, usageOf, syncChildren, bookedQty, r2,
+  STOCKED_TYPES, MOVES, orderTotals, usageOf, bookedQty, r2,
   type Line, type Order, type Status,
 } from "../logic";
 import { ApiError, bad } from "./http";
 import { orderTotalsV2 } from "../pricing";
-import { priceBreaks, unapproved, canEditField, canEditMoney, STORE_ADD, HOLDING, STORE_ADD_TYPES, canEditItems, moveCheckV2, DEFAULT_SALES_PEOPLE, canDiscount, type PriceBreak, type PriceApproval } from "../rules";
+import { priceBreaks, unapproved, canEditField, canEditMoney, STORE_ADD, HOLDING, STORE_ADD_TYPES, canEditItems, moveCheckV2, DEFAULT_SALES_PEOPLE, canDiscount, syncChildrenV2, type PriceBreak, type PriceApproval } from "../rules";
 import type { Caller } from "./auth";
 
 // ---------- shapes ----------
@@ -218,7 +218,7 @@ function cleanLines(input: unknown): SLine[] {
       crewId: l.crewId == null || l.crewId === "" ? undefined : String(l.crewId), remark: l.remark == null ? "" : String(l.remark).slice(0, 1000) };
   });
   for (const l of out) if (l.parent && !ks.has(String(l.parent))) throw bad("bad_parent", `line ${l.k}`);
-  return syncChildren(out) as SLine[];
+  return syncChildrenV2(out);
 }
 
 function diffLines(before: SLine[], after: SLine[]) {
