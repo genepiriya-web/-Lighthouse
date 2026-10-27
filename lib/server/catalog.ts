@@ -7,7 +7,8 @@ export async function searchProducts(c: PoolClient, q: { q?: string; type?: numb
   if (q.ids?.length) { args.push(q.ids); where.push(`p.id = any($${args.length}::int[])`); }
   if (q.q) { args.push(`%${q.q}%`); where.push(`(p.code ilike $${args.length} or p.description ilike $${args.length})`); }
   if (q.type) { args.push(q.type); where.push(`p.type = $${args.length}`); }
-  if (q.dept) { args.push(q.dept); where.push(`(p.dept = $${args.length} or p.dept = 3)`); }
+  // GRIP&LIGHTING (3) jobs take items from both departments, as on the artifact (it hid the filter for them)
+  if (q.dept && q.dept !== 3) { args.push(q.dept); where.push(`(p.dept = $${args.length} or p.dept = 3)`); }
   args.push(Math.max(1, Math.min(200, q.limit ?? 40)));
   const r = await c.query(`select p.id, p.code, p.description as "desc", p.type, p.dept, p.price, p.discountable, p.max_disc as "maxDisc", p.stock,
       coalesce((select json_agg(json_build_array(k.child_id, k.ratio, k.price) order by k.child_id) from kit_parts k where k.parent_id = p.id), '[]') as kit,

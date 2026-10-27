@@ -171,12 +171,14 @@ function Sheet({ id }: { id: string }) {
 }
 
 function AddItem({ tt, order, customer, noPrice, onAdd }: { tt: number; order: Any; customer: Data["customer"]; noPrice?: boolean; onAdd: (l: Array<Line & { k: string }>) => void }) {
-  const { t } = useApp(); const [q, setQ] = useState(""); const [hits, setHits] = useState<Any[]>([]); const [deptOnly, setDeptOnly] = useState(true);
-  useEffect(() => { if (q.trim().length < 2) { setHits([]); return; }
-    const dept = deptOnly && order.dept ? `&dept=${order.dept}` : "";
-    const h = setTimeout(() => (tt === 5 || tt === 7 ? api("GET", `/api/crew?q=${encodeURIComponent(q.trim())}${dept}`).then(r => r.ok && setHits(r.body.crew))
-      : api("GET", `/api/products?type=${tt}&q=${encodeURIComponent(q.trim())}${dept}`).then(r => r.ok && setHits(r.body.products))), 200);
-    return () => clearTimeout(h); }, [q, tt, deptOnly, order.dept]);
+  const { t } = useApp(); const [q, setQ] = useState(""); const [hits, setHits] = useState<Any[]>([]); const [deptOnly, setDeptOnly] = useState(true); const [found, setFound] = useState("");
+  // GRIP&LIGHTING (3) jobs search both departments, so the "this department only" box shows only for 1 or 2 (as on the artifact)
+  const oneDept = order.dept === 1 || order.dept === 2;
+  useEffect(() => { if (!q.trim()) { setHits([]); setFound(""); return; }
+    const dept = deptOnly && oneDept ? `&dept=${order.dept}` : "";
+    const h = setTimeout(() => (tt === 5 || tt === 7 ? api("GET", `/api/crew?q=${encodeURIComponent(q.trim())}${dept}`).then(r => { if (r.ok) { setHits(r.body.crew); setFound(q); } })
+      : api("GET", `/api/products?type=${tt}&q=${encodeURIComponent(q.trim())}${dept}`).then(r => { if (r.ok) { setHits(r.body.products); setFound(q); } })), 200);
+    return () => clearTimeout(h); }, [q, tt, deptOnly, order.dept, oneDept]);
   const crew = tt === 5 || tt === 7;
   const addCrew = (r: Any) => { const start = order.use_start || order.ship, end = order.use_end || order.ret;
     onAdd([{ k: uid(), t: tt, pid: null, crewId: String(r.crewId), code: r.posCode ?? "", desc: (r.posName ?? "") + (r.name || r.nick ? " · " + (r.name || r.nick) : ""), list: +r.price || 0,
@@ -190,7 +192,8 @@ function AddItem({ tt, order, customer, noPrice, onAdd }: { tt: number; order: A
   };
   return <div className="field"><span>{t("addItem")}</span>
     <div className="row"><input className="inp" style={{ flex: 1, minWidth: 0 }} type="search" placeholder={t(crew ? "searchCrew" : "searchItems")} value={q} onChange={e => setQ(e.target.value)} />
-      {order.dept ? <label className="small row" style={{ gap: 4 }}><input type="checkbox" checked={deptOnly} onChange={e => setDeptOnly(e.target.checked)} />{t("onlyDept")}</label> : null}</div>
+      {oneDept ? <label className="small row" style={{ gap: 4 }}><input type="checkbox" checked={deptOnly} onChange={e => setDeptOnly(e.target.checked)} />{t("onlyDept")}</label> : null}</div>
+    {found && found === q && hits.length === 0 && <div className="muted small">{t("noMatch")}{deptOnly && oneDept ? ` · ${t("tryAllDepts")}` : ""}</div>}
     {crew && hits.length > 0 && <div className="results">{hits.map(r => <div key={`${r.crewId}-${r.positionId}-${r.rateNo}`} className="res"><span style={{ minWidth: 0 }}>{r.posName} <span className="muted">· {r.name || r.nick}</span>
       <span className="muted small"> · <span className="mono">{r.posCode}</span> · ฿{money(r.price)} · {t("otPerHr", { r: "฿" + money(r.priceOt) })}</span>{r.needsReview ? <span className="tag"> {t("rateCheck")}</span> : null}</span>
       <button className="btn sm" type="button" onClick={() => addCrew(r)}>+</button></div>)}</div>}

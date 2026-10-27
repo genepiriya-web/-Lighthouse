@@ -90,3 +90,11 @@ test("settings: everyone reads; only admin changes company details on documents"
   ok(await S.api("admin","PUT","/api/settings/company",{name:"Lighthouse Film Service (test)",tax,addr:"1 Synthetic Rd"}));
   assert.deepEqual(ok(await S.api("store","GET","/api/settings")).company,{name:"Lighthouse Film Service (test)",tax,addr:"1 Synthetic Rd"});
 });
+
+test("item picker: a GRIP&LIGHTING (3) job searches both departments; a LIGHTING/GRIP job its own plus shared items",{skip},async()=>{
+  const codes=async q=>ok(await S.api("sale","GET",`/api/products?${q}`)).products.map(p=>p.code);
+  assert.ok((await codes("type=1&q=M18&dept=3")).includes("M18"),"dept 3 job finds a LIGHTING item");
+  assert.ok((await codes("type=1&q=M18&dept=1")).includes("M18"));
+  assert.ok(!(await codes("type=1&q=M18&dept=2")).includes("M18"),"GRIP job doesn't see a LIGHTING-only item");
+  assert.ok((await codes("type=1&q=m")).includes("M18"),"one letter is enough, any case");
+});
