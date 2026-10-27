@@ -67,13 +67,12 @@ test("sale → store → CEO → store: special price blocks shipping until conf
   await page.reload(); await expect(page.locator(".lrow:not(.head)").first().locator("input").nth(1)).toHaveValue("2");
   await page.locator(".lrow:not(.head)").first().locator("input").nth(1).fill("1");
   await expect(page.getByText(/saves itself within 5 seconds/)).toHaveCount(0, { timeout: 9000 });
-  // a discount for the whole Equipment tab (Gene, 27 Oct), then one line changed by hand
-  await page.getByLabel("Discount for all Equipment").fill("10"); await page.getByRole("button", { name: "Apply to every line" }).click();
+  // quote-wide discounts at the bottom, one for Equipment and one for Sub-rent (Gene, 27 Oct): the Equipment box sets every
+  // Equipment line, so the quotation's lines show it; then one line is changed by hand
   const disc = page.locator(".lrow:not(.head)").first().locator("input").nth(3);
-  await expect(disc).toHaveValue("10"); await noSidewaysScroll(page, "tab discount");
-  await disc.fill("0"); await expect(page.getByText(/saves itself within 5 seconds/)).toHaveCount(0, { timeout: 9000 });
-  // the quote-wide discount box at the bottom sets every line's discount, so the quotation's lines show it (Gene, 27 Oct)
-  await page.locator(".totals").last().locator("input").first().fill("15"); await page.locator(".totals").last().locator("input").first().blur();
+  await expect(page.getByLabel("Discount for all Subrent")).toBeDisabled(); // no Sub-rent lines on this job
+  await page.getByLabel("Discount for all Equipment").fill("15"); await page.getByLabel("Discount for all Equipment").blur();
+  await noSidewaysScroll(page, "quote-wide discounts");
   await expect(disc).toHaveValue("15");
   await expect(page.getByText(/saves itself within 5 seconds/)).toHaveCount(0, { timeout: 9000 });
   await page.reload(); await expect(page.locator(".lrow:not(.head)").first().locator("input").nth(3)).toHaveValue("15");

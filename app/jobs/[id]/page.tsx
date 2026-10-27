@@ -2,14 +2,14 @@
 // Job sheet: details, items, totals, status moves, CEO price confirmation, check-out/in and history.
 // Mirrors the artifact's order sheet. The buttons shown follow the same rules the server enforces (logic.js + lib/rules.ts);
 // the server stays the authority and its refusals are shown as they come back.
-import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Shell, api, useApp, stCls, money, fmtD } from "../../ui/app";
 import { CustomerPick } from "../../ui/customer-pick";
 import { orderTotalsV2 } from "../../../lib/pricing";
 import { TYPES, STATUSES, STOCKED_TYPES, typeTotals, lineCalc, chargeDays, defaultDisc, expandKit, syncChildren, type Line } from "../../../lib/logic";
-import { canEditHeader, canEditMoney, canEditReturn, canStore, STORE_ADD, STORE_ADD_TYPES, MOVES_V2, canEditItems, moveCheckV2, unpriced, TRANSPORT_REMARKS, canDiscount, type PriceBreak } from "../../../lib/rules";
+import { canEditHeader, canEditMoney, canEditReturn, canStore, STORE_ADD, STORE_ADD_TYPES, MOVES_V2, canEditItems, moveCheckV2, unpriced, TRANSPORT_REMARKS, canDiscount, DISCOUNT_TYPES, type PriceBreak } from "../../../lib/rules";
 
 type Any = Record<string, any>;
 interface Data { order: Any; lines: Array<Line & { k: string }>; activity: Any[]; needsCeo: PriceBreak[]; customer: { id: string; name: string; default_disc: number } | null;
@@ -34,7 +34,7 @@ function Sheet({ id }: { id: string }) {
   const { t, me } = useApp(); const role = me?.role ?? "none"; const router = useRouter();
   const [d, setD] = useState<Data | null>(null); const [err, setErr] = useState<string>(""); const [stale, setStale] = useState(false);
   const [draft, setDraft] = useState<Array<Line & { k: string }> | null>(null); const [tt, setTt] = useState(1); const [busy, setBusy] = useState(false);
-  const [confirmCancel, setConfirmCancel] = useState(false); const [bulkDisc, setBulkDisc] = useState(""); const [sales, setSales] = useState<string[]>([]);
+  const [confirmCancel, setConfirmCancel] = useState(false); const [sales, setSales] = useState<string[]>([]);
   useEffect(() => { api("GET", "/api/settings").then(r => r.ok && setSales(r.body.sales_people ?? [])); }, []);
 
   const load = useCallback(async () => { const r = await api<Data & { error?: string }>("GET", `/api/orders/${encodeURIComponent(id)}`);
@@ -87,14 +87,15 @@ function Sheet({ id }: { id: string }) {
   const breakOf = (k: string) => d.needsCeo.filter(b => b.k === k);
 
   const shortMsg = (r: Any) => r?.short?.length && setErr(`${t("storeShort")} ${r.short.map((x: Any) => `${d.lines.find(l => l.pid === x.pid)?.code ?? "#" + x.pid} −${x.short}`).join(", ")}`);
-  // The quote-wide discount (Gene, 27 Oct): sets the discount on every Equipment and Sub-rent line (not package parts, FOC
-  // or standby), so each line on the quotation shows it; any line can still be changed by hand after. A job that had the
-  // old order-level extra discount gets it cleared first, so the two never stack. Lines go out with autosave.
-  const discLines = lines.filter(l => canDiscount(l.t) && !l.parent && !l.foc && !l.sb);
+  // Quote-wide discounts (Gene, 27 Oct), one for Equipment and one for Sub-rent: each sets the discount on every line of
+  // its type (not package parts, FOC or standby), so each line on the quotation shows it; any line can still be changed by
+  // hand after. A job that had the old order-level extra discount gets it cleared first, so the two never stack.
+  // Lines go out with autosave.
   const dOf = (l: Line) => Number(l.disc ?? 0) || 0;
-  const commonDisc = !discLines.length ? 0 : discLines.every(l => dOf(l) === dOf(discLines[0])) ? dOf(discLines[0]) : null;
-  const applyAllDisc = async (v: number) => {
-    const setAll = (ls: Data["lines"]) => ls.map(l => canDiscount(l.t) && !l.parent && !l.foc && !l.sb ? { ...l, disc: v } : l);
+  const discOf = (ty: number) => lines.filter(l => l.t === ty && !l.parent && !l.foc && !l.sb);
+  const commonOf = (ty: number) => { const ls = discOf(ty); return !ls.length ? 0 : ls.every(l => dOf(l) === dOf(ls[0])) ? dOf(ls[0]) : null; };
+  const applyAllDisc = async (v: number, ty: number) => {
+    const setAll = (ls: Data["lines"]) => ls.map(l => l.t === ty && !l.parent && !l.foc && !l.sb ? { ...l, disc: v } : l);
     if (!o.extra_disc) { setDraft(setAll(lines)); return; }
     setBusy(true); const p = await api("PATCH", `/api/orders/${encodeURIComponent(id)}`, { rev: o.rev, extraDisc: 0 });
     const g = p.ok ? await api<Data>("GET", `/api/orders/${encodeURIComponent(id)}`) : null; setBusy(false);
@@ -161,13 +162,6 @@ function Sheet({ id }: { id: string }) {
         {!editL && <div className="muted small">{t("readOnlyItems")}</div>}
         <div className="ttabs" role="tablist">{TYPES.filter(x => !noPrice || STORE_ADD_TYPES.includes(x.id)).map(x => { const n = lines.filter(l => l.t === x.id && !l.parent).length;
           return <button key={x.id} className="ttab" type="button" role="tab" aria-selected={tt === x.id} onClick={() => setTt(x.id)}>{typeLabel(x.id)}{n ? <span className="n">{n}</span> : null}</button>; })}</div>
-        {/* Discount for a whole tab (Gene, 27 Oct): Equipment and Sub-rent each have their own; it fills every priced line in the
-            tab (not package parts, FOC or standby), and any single line can still be changed after. Saved by autosave. */}
-        {editL && !noPrice && canDiscount(tt) && lines.some(l => l.t === tt && !l.parent) && <form className="row small" style={{ gap: 6 }} onSubmit={e => { e.preventDefault();
-          const v = Math.max(0, Math.min(100, parseFloat(bulkDisc) || 0)); setDraft(lines.map(l => l.t === tt && !l.parent && !l.foc && !l.sb ? { ...l, disc: v } : l)); setBulkDisc(""); }}>
-          <span className="muted">{t("tabDisc", { t: typeLabel(tt) })}</span>
-          <input className="inp cell num" type="number" min={0} max={100} step="0.01" required value={bulkDisc} onChange={e => setBulkDisc(e.target.value)} aria-label={t("tabDisc", { t: typeLabel(tt) })} />
-          <span>%</span><button className="btn sm" type="submit">{t("tabDiscApply")}</button></form>}
         <div>
           <div className="lrow head"><span>{t("i_desc")}</span>{noPrice ? <span /> : <span>{t("i_list")}</span>}<span>{t("i_qty")}</span><span>{t("i_days")}</span>{noPrice ? <span /> : <span>{tt === 5 || tt === 7 ? t("i_ot") : t("i_disc")}</span>}<span style={{ textAlign: "right" }}>{noPrice ? "" : t("i_total")}</span><span /></div>
           {lines.filter(l => l.t === tt).map(l => { const child = !!l.parent; const c = lineCalc(l); const crew = l.t === 5 || l.t === 7; const can = editL && !child; const br = breakOf(l.k);
@@ -192,9 +186,9 @@ function Sheet({ id }: { id: string }) {
           <div className="totals"><b style={{ gridColumn: "1/-1" }}>{t("t_type", { t: typeLabel(tt) })}</b><span>{t("t_list")}</span><span className="num">฿ {money(T.list)}</span><span>{t("t_disc")}</span><span className="num">฿ {money(T.disc)}</span><span>{t("t_sub")}</span><span className="num">฿ {money(T.sub)}</span></div>
           <div className="totals"><b style={{ gridColumn: "1/-1" }}>{t("t_grand")}</b>
             <span>{t("t_list")}</span><span className="num">฿ {money(G.list)}</span><span>{t("t_disc")}</span><span className="num">฿ {money(G.disc)}</span><span>{t("t_sub")}</span><span className="num">฿ {money(G.sub)}</span>
-            {editL ? <><span>{t("allDisc")}<span className="muted small"> · {t("discTypesOnly")}</span></span><span><input className="inp cell num" type="number" min={0} max={100} step="0.01" placeholder={commonDisc === null ? t("mixed") : ""}
-              defaultValue={commonDisc ?? ""} key={"ad" + o.rev + (commonDisc ?? "m") + (dirty ? "d" : "")} disabled={busy || (dirty && !!o.extra_disc)}
-              onBlur={e => { if (e.target.value === "") return; const v = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)); if (v !== commonDisc || o.extra_disc) applyAllDisc(v); }} /></span></>
+            {editL ? <>{DISCOUNT_TYPES.map(ty => { const c = commonOf(ty); return <Fragment key={ty}><span>{t("tabDisc", { t: typeLabel(ty) })} %</span><span><input className="inp cell num" type="number" min={0} max={100} step="0.01"
+              placeholder={c === null ? t("mixed") : ""} defaultValue={c ?? ""} key={"ad" + ty + o.rev + (c ?? "m") + (dirty ? "d" : "")} disabled={busy || (dirty && !!o.extra_disc) || !discOf(ty).length} aria-label={t("tabDisc", { t: typeLabel(ty) })}
+              onBlur={e => { if (e.target.value === "") return; const v = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)); if (v !== c || o.extra_disc) applyAllDisc(v, ty); }} /></span></Fragment>; })}</>
             : <><span>{t("extraDisc")}{!legacy && <span className="muted small"> · {t("discEquipOnly")}</span>}</span><span>{editM && !dirty ? <input className="inp cell num" type="number" min={0} max={100} step="0.01" defaultValue={o.extra_disc} key={"x" + o.rev} onBlur={e => +e.target.value !== o.extra_disc && run("PATCH", "", { extraDisc: +e.target.value || 0 })} /> : <span className="num">{o.extra_disc}%</span>}</span></>}
             {G.extra ? <><span>{t("t_extra")}</span><span className="num">- ฿ {money(G.extra)}</span></> : null}
             <span>{t("adjustTo")}</span><span>{editM && !dirty ? <input className="inp cell num" style={{ width: 110 }} type="number" step="0.01" placeholder={money(G.sub - G.extra)} defaultValue={G.adj ? (G.sub - G.extra + G.adj).toFixed(2) : ""} key={"a" + o.rev}
