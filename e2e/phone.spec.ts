@@ -52,8 +52,8 @@ test("sale → store → CEO → store: special price blocks shipping until conf
   await expect(page.locator("label", { hasText: "Days per week" })).toHaveCount(0); // Daily: no days-per-week field (Gene, 27 Oct)
   await expect(page.getByPlaceholder("Search customer name or code")).toHaveValue("Synthetic Films");
 
-  await page.getByPlaceholder("Search code or description").fill("M18");
-  await page.locator(".res", { hasText: "M18" }).getByRole("button", { name: "+" }).click();
+  await page.getByPlaceholder("Search item name").fill("HMI");
+  await page.locator(".res", { hasText: "Synthetic HMI 18K" }).getByRole("button", { name: "+" }).click();
   const price = page.locator(".lrow:not(.head)").first().locator("input").first();
   await expect(price).toHaveValue("24000");
   await price.fill("20000");

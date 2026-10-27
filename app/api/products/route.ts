@@ -1,4 +1,4 @@
-// GET /api/products?q=&type=&dept=&ids=1,2 — catalog search for the item picker (any staff).
+// GET /api/products?q=&type=&dept=&ids=1,2 — catalog search for the item picker (any staff). `q` matches item names only.
 import { handle } from "../../../lib/server/http";
 import { requireStaff } from "../../../lib/server/auth";
 import { tx } from "../../../lib/server/db";

@@ -5,7 +5,8 @@ import type { PoolClient } from "pg";
 export async function searchProducts(c: PoolClient, q: { q?: string; type?: number; dept?: number; ids?: number[]; limit?: number }) {
   const where: string[] = []; const args: unknown[] = [];
   if (q.ids?.length) { args.push(q.ids); where.push(`p.id = any($${args.length}::int[])`); }
-  if (q.q) { args.push(`%${q.q}%`); where.push(`(p.code ilike $${args.length} or p.description ilike $${args.length})`); }
+  // The item picker searches item names only, not codes (Gene, 27 Oct)
+  if (q.q) { args.push(`%${q.q}%`); where.push(`p.description ilike $${args.length}`); }
   if (q.type) { args.push(q.type); where.push(`p.type = $${args.length}`); }
   // GRIP&LIGHTING (3) jobs take items from both departments, as on the artifact (it hid the filter for them)
   if (q.dept && q.dept !== 3) { args.push(q.dept); where.push(`(p.dept = $${args.length} or p.dept = 3)`); }

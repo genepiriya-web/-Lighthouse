@@ -132,7 +132,7 @@ function Sheet({ id }: { id: string }) {
             const num = (f: keyof Line, step = "1") => <label><span className="lbl">{t(f === "list" ? "i_list" : f === "qty" ? "i_qty" : f === "days" ? "i_days" : f === "ot" ? "i_ot" : "i_disc")}</span>
               <input className="inp cell num" type="number" min={0} step={step} disabled={!can} value={String(l[f] ?? 0)} onChange={e => setLine(l.k, { [f]: Math.max(0, parseFloat(e.target.value) || 0) } as Partial<Line>)} /></label>;
             return <div key={l.k} className={`lrow ${child ? "child" : ""}`} style={br.length ? { background: "color-mix(in srgb,var(--warn) 10%,transparent)" } : undefined}>
-              <span className="desc"><b>{l.code}</b>{l.desc}{crew && l.otRate ? <span className="muted small"> · {t("otPerHr", { r: "฿" + money(+l.otRate) })}</span> : null}{l.foc ? <span className="tag"> FOC</span> : null}{l.sb ? <span className="tag"> SB</span> : null}{child ? <span className="muted small"> · {t("kitOf")}</span> : null}</span>
+              <span className="desc">{l.desc || l.code}{crew && l.otRate ? <span className="muted small"> · {t("otPerHr", { r: "฿" + money(+l.otRate) })}</span> : null}{l.foc ? <span className="tag"> FOC</span> : null}{l.sb ? <span className="tag"> SB</span> : null}{child ? <span className="muted small"> · {t("kitOf")}</span> : null}</span>
               {noPrice ? <span /> : num("list", "0.01")}{num("qty")}{num("days", "0.5")}{noPrice ? <span /> : crew ? num("ot", "0.5") : num("disc", "0.01")}
               <span className="tot num" style={{ textAlign: "right" }}>{noPrice ? "" : `฿ ${money(c.total)}`}</span>
               <span>{can && <button className="btn sm ghost" type="button" onClick={() => removeLine(l.k)} aria-label={t("remove")}>✕</button>}</span>
@@ -191,13 +191,13 @@ function AddItem({ tt, order, customer, noPrice, onAdd }: { tt: number; order: A
     onAdd([parent, ...expandKit(parent, p.kit ?? [], cat, uid) as Array<Line & { k: string }>]); setQ(""); setHits([]);
   };
   return <div className="field"><span>{t("addItem")}</span>
-    <div className="row"><input className="inp" style={{ flex: 1, minWidth: 0 }} type="search" placeholder={t(crew ? "searchCrew" : "searchItems")} value={q} onChange={e => setQ(e.target.value)} />
+    <div className="row"><input className="inp" style={{ flex: 1, minWidth: 0 }} type="search" placeholder={t(crew ? "searchCrew" : "searchItemName")} value={q} onChange={e => setQ(e.target.value)} />
       {oneDept ? <label className="small row" style={{ gap: 4 }}><input type="checkbox" checked={deptOnly} onChange={e => setDeptOnly(e.target.checked)} />{t("onlyDept")}</label> : null}</div>
     {found && found === q && hits.length === 0 && <div className="muted small">{t("noMatch")}{deptOnly && oneDept ? ` · ${t("tryAllDepts")}` : ""}</div>}
     {crew && hits.length > 0 && <div className="results">{hits.map(r => <div key={`${r.crewId}-${r.positionId}-${r.rateNo}`} className="res"><span style={{ minWidth: 0 }}>{r.posName} <span className="muted">· {r.name || r.nick}</span>
       <span className="muted small"> · <span className="mono">{r.posCode}</span> · ฿{money(r.price)} · {t("otPerHr", { r: "฿" + money(r.priceOt) })}</span>{r.needsReview ? <span className="tag"> {t("rateCheck")}</span> : null}</span>
       <button className="btn sm" type="button" onClick={() => addCrew(r)}>+</button></div>)}</div>}
-    {!crew && hits.length > 0 && <div className="results">{hits.map(p => <div key={p.id} className="res"><span style={{ minWidth: 0 }}><b className="mono">{p.code}</b> {p.desc}<span className="muted small">{noPrice ? "" : ` · ฿${money(p.price)}${t("perDay")}`} · {t("stock")} {p.stock}{p.kit?.length ? ` · ${t("kit")} ${p.kit.length}` : ""}</span></span>
+    {!crew && hits.length > 0 && <div className="results">{hits.map(p => <div key={p.id} className="res"><span style={{ minWidth: 0 }}>{p.desc}<span className="muted small">{noPrice ? "" : ` · ฿${money(p.price)}${t("perDay")}`} · {t("stock")} {p.stock}{p.kit?.length ? ` · ${t("kit")} ${p.kit.length}` : ""}</span></span>
       <button className="btn sm" type="button" onClick={() => add(p)}>+</button></div>)}</div>}
   </div>;
 }
@@ -262,7 +262,7 @@ function Store({ o, lines, can, canRepair, run, busy }: { o: Any; lines: Data["l
   return <section className="sec"><h3>{t(mode === "out" ? "checkout" : "checkin")}<small>{stocked.filter(done).length} / {stocked.length}</small></h3>
     {can && <div className="row"><button className="btn" type="button" disabled={busy} onClick={() => run("POST", path, { all: true })}>{t(mode === "out" ? "allOut" : "allIn")}</button></div>}
     <div><div className="lrow head"><span>{t("i_desc")}</span><span>{t("i_qty")}</span><span>{t("outQ")}</span>{mode === "in" ? <><span>{t("inQ")}</span><span>{t("dmg")}</span><span>{t("lost")}</span></> : <><span /><span /><span /></>}<span /></div>
-      {stocked.map(l => <div key={l.k} className={`lrow ${l.parent ? "child" : ""}`}><span className="desc"><b>{l.code}</b>{l.desc} {done(l) && <span className="good">✓</span>}</span>
+      {stocked.map(l => <div key={l.k} className={`lrow ${l.parent ? "child" : ""}`}><span className="desc">{l.desc || l.code} {done(l) && <span className="good">✓</span>}</span>
         <label><span className="lbl">{t("i_qty")}</span><span className="num">{l.qty}</span></label>{cell(l, "out")}
         {mode === "in" ? <>{cell(l, "in")}{cell(l, "dmg")}{cell(l, "lost")}</> : <><span /><span /><span /></>}<span>{l.repaired ? <span className="tag">{t("repair")}</span> : null}</span></div>)}</div>
     {mode === "in" && canRepair && stocked.some(l => (+l.dmg! || 0) > 0 && !l.repaired) && <div><button className="btn" type="button" disabled={busy} onClick={() => run("POST", "/repairs", {})}>{t("sendRepair")}</button></div>}
