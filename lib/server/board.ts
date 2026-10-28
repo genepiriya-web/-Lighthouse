@@ -6,7 +6,7 @@ import "server-only";
 import type { PoolClient } from "pg";
 import type { Caller } from "./auth";
 import { ApiError, bad } from "./http";
-import { autoFill } from "../boardform";
+import { autoFill, groupAdds } from "../boardform";
 
 export const BOARD_FIELDS = ["loc", "onloc", "gaffer", "head", "crew", "trucks", "gens", "remark"] as const;
 type Field = typeof BOARD_FIELDS[number];
@@ -29,18 +29,21 @@ export async function getBoard(c: PoolClient, day: unknown) {
   const prev = ids.length ? (await c.query(`select distinct on (order_id) * from board_entries where order_id = any($1) and day < $2 order by order_id, day desc`, [ids, day])).rows : [];
   const byJob = <T extends { order_id: string }>(rows: T[]) => { const m = new Map<string, T[]>(); for (const r of rows) m.set(r.order_id, [...(m.get(r.order_id) ?? []), r]); return m; };
   const L = byJob(lines), E = new Map(entries.map(e => [e.order_id, e])), P = new Map(prev.map(e => [e.order_id, e]));
+  // Add-on jobs go under their main job (Gene, 28 Oct), whose row then shows the crew, trucks and generators of both.
+  const rows = groupAdds(jobs.map(j => ({ ...j, section: j.job_type === "TVD" ? "drama" : "ads" })));
   return {
     day,
-    jobs: jobs.map(j => {
+    jobs: rows.map(j => {
       // What the job itself says for each column (Gene: fill the board from the job): crew by position and nickname,
       // vehicles and generators from its transport lines, the gaffer and note from the job.
-      const a = autoFill((L.get(j.id) ?? []).filter(l => !l.parent_k));
+      const a = autoFill([j, ...j.adds].flatMap(x => (L.get(x.id) ?? []).filter(l => !l.parent_k)));
       const auto = { ...a, gaffer: a.gaffer || j.gaffer || "", remark: j.note || "" };
       // Jobs whose dates span more than ODD_DAYS are almost always old jobs left open with placeholder dates (e.g. 2024 jobs
       // at Order from 25/12/2025 to 31/12/2026); they are listed apart so they don't crowd every day's board.
       const from = String(j.use_start ?? j.ship ?? "").slice(0, 10), to = String(j.use_end ?? j.ret ?? "").slice(0, 10);
       const odd = !!from && !!to && (Date.parse(to) - Date.parse(from)) / 864e5 > ODD_DAYS;
-      return { ...j, section: j.job_type === "TVD" ? "drama" : "ads", odd, auto, entry: E.get(j.id) ?? null, prev: P.get(j.id) ?? null };
+      return { ...j, adds: j.adds.map((x: Record<string, any>) => ({ id: x.id, no: x.no, status: x.status, job_title: x.job_title, use_start: x.use_start, use_end: x.use_end, ship: x.ship, ret: x.ret })),
+        odd, auto, entry: E.get(j.id) ?? null, prev: P.get(j.id) ?? null };
     }),
   };
 }

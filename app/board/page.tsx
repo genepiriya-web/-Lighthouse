@@ -7,7 +7,7 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Shell, api, useApp } from "../ui/app";
-import { span, salesLabel } from "../../lib/boardform";
+import { span, salesLabel, addLabel } from "../../lib/boardform";
 
 type Any = Record<string, any>;
 const FIELDS = ["onloc", "loc", "gaffer", "head", "crew", "trucks", "gens", "remark"] as const;
@@ -83,7 +83,8 @@ function Row({ j, can, onSave }: { j: Any; can: boolean; onSave: (p: Partial<Rec
     <td className="ro">{span(j)}{can && fromJob && j.prev && <div><button className="btn sm ghost" type="button" title={t("bd_copy", { d: dmy(String(j.prev.day).slice(0, 10)) })}
       onClick={() => onSave(Object.fromEntries(FIELDS.map(k => [k, j.prev[k] ?? ""])), true)}>⧉</button></div>}</td>
     <td className="ro no">{j.addition_of_no ? <>Add&gt;<Link href={`/jobs/${encodeURIComponent(j.id)}`}>{j.no}</Link><div className="muted small">({j.addition_of_no})</div></> : <Link href={`/jobs/${encodeURIComponent(j.id)}`}>{j.no}</Link>}
-      <div className="muted small">{j.status}</div></td>
+      <div className="muted small">{j.status}</div>
+      {(j.adds ?? []).map((a: Any) => <div key={a.id} className="small" title={a.job_title}>{addLabel(a)}<Link href={`/jobs/${encodeURIComponent(a.id)}`}>{a.no}</Link></div>)}</td>
     <td className="ro">{j.customer_name}</td><td className="ro">{j.dop}</td><td className="ro">{j.job_title}</td>
     <td>{cell("onloc")}{cell("loc")}</td><td>{cell("gaffer")}</td><td>{cell("head")}</td><td>{cell("crew")}</td><td>{cell("trucks")}</td><td>{cell("gens")}</td>
     <td className="ro">{salesLabel(j.sale)}</td><td className="rm">{cell("remark")}</td>

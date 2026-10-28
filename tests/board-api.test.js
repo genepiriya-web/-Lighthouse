@@ -1,7 +1,7 @@
 // Daily job board (Gene, 27 Oct 2026): who sees and edits it, which jobs a day shows, entries per job per day, the stale
 // check, copying forward, and the PDF. Synthetic data only (tests/helpers/fixture.js).
 const test=require("node:test"); const assert=require("node:assert/strict");
-const {startTestServer,skipReason}=require("./helpers/server"); const {boardPage,span,autoFill,unitOf}=require("../lib/boardform.js");
+const {startTestServer,skipReason}=require("./helpers/server"); const {boardPage,span,autoFill,unitOf,groupAdds,addLabel}=require("../lib/boardform.js");
 const skip=skipReason(); let S;
 test.before(async()=>{ if(!skip) S=await startTestServer(3931); });
 test.after(async()=>{ if(S) await S.stop(); });
@@ -56,4 +56,17 @@ test("filled from the job like the Excel (Gene, 27 Oct): nicknames by position, 
   assert.deepEqual(a,{gaffer:"สี่(FL)",head:"หนึ่ง",crew:"สอง สาม(Grip) Nick",trucks:"ห้า หก\nP18 (0000)",gens:"เจ็ด G17 (0001)"});
   assert.equal(unitOf("Van (TEST-0000) V5"),"V5 (TEST-0000)"); assert.equal(unitOf("Lighting Truck"),"Lighting Truck");
   assert.deepEqual(autoFill([]),{gaffer:"",head:"",crew:"",trucks:"",gens:""});
+});
+
+test("add-on jobs sit under their main job (Gene, 28 Oct): same customer and title, best-matching L/G tag and dates; v2 links first",()=>{
+  const J=(no,title,cust,s,e,x={})=>({id:no,no,job_title:title,customer_name:cust,use_start:s,use_end:e,...x});
+  const rows=groupAdds([J("1","Show A (L&G 1 Q. Shoot)","C1","2026-10-01","2026-10-27"),J("2","Show A (L&G 27-30/10/2026)","C1","2026-10-27","2026-10-30"),
+    J("3","Add. Show A (L&G 27-30/10/2026)","C1","2026-10-27","2026-10-30"),J("4","ADD show a (L&G 28/10/2026) PK","C1","2026-10-28","2026-10-28"),
+    J("5","Add. Show A (L 28/10)","C2","2026-10-28","2026-10-28"),J("6","Plan (L 28/10)","C3","2026-10-28","2026-10-28"),J("7","Plan (G 28/10)","C3","2026-10-28","2026-10-28"),
+    J("8","Add.Plan (G 28/10)","C3","2026-10-28","2026-10-28"),J("9","Urgent — Store addition","C1","2026-10-28","2026-10-28",{addition_of:"6"})]);
+  const by=Object.fromEntries(rows.map(r=>[r.no,r.adds.map(a=>a.no)]));
+  assert.deepEqual(by,{"1":[],"2":["3","4"],"5":[],"6":["9"],"7":["8"]},"dates pick 2 over 1; another customer's add-on stays; the G add-on goes to the G job; v2 link wins");
+  assert.equal(addLabel({use_start:"2026-10-28",use_end:"2026-10-28"}),"28>"); assert.equal(addLabel({use_start:"2026-10-27",use_end:"2026-10-30"}),"Add>");
+  const h=boardPage({day:"2026-10-28",jobs:[{...J("2","Show A","C1","2026-10-27","2026-10-30"),dept:1,section:"drama",auto:{},entry:null,adds:[{no:"4",use_start:"2026-10-28",use_end:"2026-10-28"}]}]},"28/10/2026");
+  assert.ok(h.includes("2<br>28&gt;4"),"printed in the main row like the Excel");
 });
