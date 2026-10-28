@@ -11,3 +11,4 @@ test-results/
 playwright-report/
 .trial-pin
 .trial-pins.json
+.DS_Store
