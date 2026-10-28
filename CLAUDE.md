@@ -23,6 +23,7 @@ Gene (MD) decides. Give pros and cons for every proposal. Never guess facts: wri
 - `lib/rules.ts` — rules shared by server and screens (special prices, who may edit details/money/store). `lib/i18n.ts` + `lib/i18n.artifact.json` — Thai/English; reuse artifact strings (re-extract with `node scripts/extract-i18n.js`), and list any new Thai for review.
 - `app/globals.css` — the artifact's CSS copied as-is plus a few phone-layout additions. Screens must work at 390 px: nothing may run past the screen edge (`e2e/phone.spec.ts` checks every element, because `overflow-x: hidden` would hide it from a plain width check). Add new screens to that test.
 - `supabase/migrations/` — schema, RLS, guards. Same SQL on Supabase and local. `supabase/local-shim.sql` fakes Supabase's roles/`auth.uid()` locally; never apply it to Supabase.
+- `scripts/sync/` — read-only old-system sync (`pull.browser.js` runs in a logged-in tab with the old app's own client, read endpoints only; `convert.js` → `data/export`; steps in docs/old-system-readonly.md). Never add a non-read endpoint to its ALLOW list. Tested by `tests/sync-convert.test.js`.
 - `scripts/db.js` (local Postgres 17 in `.pgdata/`, git-ignored) · `scripts/migrate.js` · `scripts/import.js` (idempotent loader for `data/export`).
 
 ## Database rules (enforced by tests/db.test.js — keep them true)

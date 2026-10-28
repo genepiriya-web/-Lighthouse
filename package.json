@@ -9,7 +9,7 @@
     "build:artifact": "node scripts/build.js",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/logic.test.js tests/parity.test.js tests/docs.test.js tests/quoteform.test.js tests/pricing.test.js",
+    "test": "node --test tests/logic.test.js tests/parity.test.js tests/docs.test.js tests/quoteform.test.js tests/pricing.test.js tests/sync-convert.test.js",
     "test:ui": "node --test tests/ui.test.js",
     "test:api": "node --test tests/api.test.js",
     "db:start": "node scripts/db.js start",
@@ -29,7 +29,9 @@
     "test:trial": "node --test --test-concurrency=1 tests/trial.test.js",
     "trial": "node scripts/trial.js",
     "test:notify": "node --test --test-concurrency=1 tests/notify.test.js",
-    "test:board": "node --test --test-concurrency=1 tests/board-api.test.js"
+    "test:board": "node --test --test-concurrency=1 tests/board-api.test.js",
+    "sync:recheck": "node scripts/sync/recheck-ids.js",
+    "sync:convert": "node scripts/sync/convert.js"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",
