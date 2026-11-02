@@ -17,7 +17,9 @@ function Jobs() {
   const counts = useMemo(() => { const c: Record<string, number> = {}; for (const r of rows ?? []) c[r.status] = (c[r.status] || 0) + 1; return c; }, [rows]);
   const src = filter === "Draft INV" || filter === "Cancel" ? closed : rows;
   const list = (src ?? []).filter(r => filter === "open" || filter === "Draft INV" || filter === "Cancel" || r.status === filter)
-    .filter(r => { const s = q.trim().toLowerCase(); return !s || [r.no, r.job_title, r.customer_name, r.dop].some(v => String(v || "").toLowerCase().includes(s)); });
+    // every typed word in any of the columns, any order (as the server search)
+    .filter(r => { const ws = q.toLowerCase().split(/\s+/).filter(Boolean); const hay = [r.no, r.job_title, r.customer_name, r.dop].map(v => String(v || "").toLowerCase());
+      return ws.every(w => hay.some(v => v.includes(w))); });
   const net = (r: Row) => r.totals ? money(r.totals.sub - r.totals.extra + (r.totals.adj || 0)) : "–";
   return (
     <>

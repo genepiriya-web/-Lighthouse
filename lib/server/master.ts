@@ -7,6 +7,7 @@ import { DEFAULT_SALES_PEOPLE } from "../rules";
 import type { PoolClient } from "pg";
 import { ApiError, bad } from "./http";
 import type { Caller } from "./auth";
+import { wordsMatch } from "./search";
 
 const need = (who: Caller, ...roles: string[]) => { if (!roles.includes(who.role)) throw new ApiError(403, "rRole"); };
 async function log(c: PoolClient, who: Caller, entity: string, id: string, action: string, detail: unknown) {
@@ -164,7 +165,7 @@ export async function getCustomer(c: PoolClient, who: Caller, id: string) {
 
 export async function listCustomers(c: PoolClient, q: { q?: string; flagged?: boolean; limit?: number }) {
   const where: string[] = []; const args: unknown[] = [];
-  if (q.q) { args.push(`%${q.q}%`); where.push(`(name ilike $${args.length} or code ilike $${args.length})`); }
+  const m = wordsMatch(["name", "code"], q.q, args); if (m) where.push(m);
   if (q.flagged) where.push("flagged_new");
   args.push(Math.max(1, Math.min(500, q.limit ?? 100)));
   return (await c.query(`select id, code, name, job_type as "jobType", default_disc as "defaultDisc", phone, flagged_new as "flaggedNew", source
@@ -174,7 +175,7 @@ export async function listCustomers(c: PoolClient, q: { q?: string; flagged?: bo
 // ---------- catalog list, crew rates ----------
 export async function listProducts(c: PoolClient, q: { q?: string; type?: number; dept?: number; limit?: number }) {
   const where: string[] = []; const args: unknown[] = [];
-  if (q.q) { args.push(`%${q.q}%`); where.push(`(code ilike $${args.length} or description ilike $${args.length})`); }
+  const m = wordsMatch(["code", "description"], q.q, args); if (m) where.push(m);
   if (q.type) { args.push(q.type); where.push(`type = $${args.length}`); }
   if (q.dept) { args.push(q.dept); where.push(`dept = $${args.length}`); }
   args.push(Math.max(1, Math.min(500, q.limit ?? 100)));
@@ -186,13 +187,15 @@ export async function listProducts(c: PoolClient, q: { q?: string; type?: number
 /** Crew rates screen (view only, as on the artifact). Cost columns only for admin and the crew manager (Gene, Q15). */
 export async function listCrewRates(c: PoolClient, who: Caller, q: string, limit = 400) {
   const cost = who.role === "admin" || who.role === "crew";
+  const args: unknown[] = [], m = wordsMatch(["cr.first_name", "cr.last_name", "cr.nick", "cr.code", "p.name", "p.code"], q, args);
+  args.push(Math.max(1, Math.min(1000, limit)));
   return (await c.query(`select cr.id as "crewId", cr.code as "crewCode", trim(concat_ws(' ', cr.first_name, cr.last_name)) as name, cr.nick, cr.enabled,
       r.position_id as "positionId", r.rate_no as "rateNo", r.needs_review as "needsReview", r.dept, r.price, r.price_ot as "priceOt", r.enabled as "rateEnabled",
       p.code as "posCode", p.name as "posName" ${cost ? `, k.cost, k.cost_ot as "costOt"` : ""}
     from crew cr join crew_rates r on r.crew_id = cr.id left join positions p on p.id = r.position_id
     ${cost ? "left join crew_rate_costs k on k.crew_id = r.crew_id and k.position_id = r.position_id and k.rate_no = r.rate_no" : ""}
-    where ($1 = '' or cr.first_name ilike $2 or cr.last_name ilike $2 or cr.nick ilike $2 or cr.code ilike $2 or p.name ilike $2 or p.code ilike $2)
-    order by r.needs_review desc, cr.first_name, p.sort nulls last, r.rate_no limit $3`, [q, `%${q}%`, Math.max(1, Math.min(1000, limit))])).rows;
+    ${m ? `where ${m}` : ""}
+    order by r.needs_review desc, cr.first_name, p.sort nulls last, r.rate_no limit $${args.length}`, args)).rows;
 }
 
 // ---------- team ----------

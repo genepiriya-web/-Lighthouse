@@ -14,6 +14,7 @@ import { ApiError, bad } from "./http";
 import { orderTotalsV2 } from "../pricing";
 import { priceBreaks, unapproved, canEditField, canEditMoney, STORE_ADD, HOLDING, STORE_ADD_TYPES, canEditItems, moveCheckV2, DEFAULT_SALES_PEOPLE, canDiscount, syncChildrenV2, type PriceBreak, type PriceApproval } from "../rules";
 import type { Caller } from "./auth";
+import { wordsMatch } from "./search";
 
 // ---------- shapes ----------
 const HEADER_FIELDS = {
@@ -131,7 +132,7 @@ export async function listOrders(c: PoolClient, q: { status?: string; search?: s
   const where: string[] = []; const args: unknown[] = [];
   if (q.status === "open") where.push(`status in ('Quote','Order','Approve','Shipped','Returned','Store Add')`);
   else if (q.status) { args.push(q.status); where.push(`status = $${args.length}`); }
-  if (q.search) { args.push(`%${q.search}%`); where.push(`(no ilike $${args.length} or job_title ilike $${args.length} or customer_name ilike $${args.length} or dop ilike $${args.length})`); }
+  const m = wordsMatch(["no", "job_title", "customer_name", "dop"], q.search, args); if (m) where.push(m);
   if (q.before) { args.push(q.before); where.push(`no < $${args.length}`); }
   const limit = Math.max(1, Math.min(500, q.limit ?? 100)); args.push(limit);
   const r = await c.query(`select id, no, owner, status, customer_name, job_title, job_type, dept, ship, ret, dop, sale, totals, rev, addition_of

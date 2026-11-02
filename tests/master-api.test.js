@@ -98,4 +98,13 @@ test("item picker (names only): a GRIP&LIGHTING (3) job searches both department
   assert.ok(!(await codes("type=1&q=HMI&dept=2")).includes("M18"),"GRIP job doesn't see a LIGHTING-only item");
   assert.ok((await codes("type=1&q=h")).includes("M18"),"one letter is enough, any case");
   assert.deepEqual(await codes("type=1&q=M18"),[],"names only: the code isn't searched (Gene, 27 Oct)");
+  // every typed word, any order, any spacing (2 Nov: 222 old item names have double spaces)
+  assert.ok((await codes(`type=1&q=${encodeURIComponent("18k  synthetic ")}`)).includes("M18"),"words out of order, extra spaces");
+  assert.deepEqual(await codes(`type=1&q=${encodeURIComponent("HMI nothing")}`),[],"every word must match");
+  assert.deepEqual(await codes(`q=${encodeURIComponent("%")}`),[],"% is a character, not a wildcard");
+  assert.deepEqual(await codes(`q=${encodeURIComponent("_")}`),[],"_ is a character, not a wildcard");
+  const cust=async q=>ok(await S.api("sale","GET",`/api/customers?q=${encodeURIComponent(q)}`)).customers.map(c=>c.code);
+  assert.ok((await cust("films synthetic")).includes("C10"),"customer words in any order");
+  const crew=ok(await S.api("sale","GET",`/api/crew?q=${encodeURIComponent("Test Gaffer")}`)).crew;
+  assert.ok(crew.some(r=>r.crewCode==="G01"),"first and last name typed together find the crew member");
 });

@@ -1,12 +1,13 @@
 // Read-only lookups for the job screens: products (with package parts), crew rates and repair tickets.
 import "server-only";
 import type { PoolClient } from "pg";
+import { wordsMatch } from "./search";
 
 export async function searchProducts(c: PoolClient, q: { q?: string; type?: number; dept?: number; ids?: number[]; limit?: number }) {
   const where: string[] = []; const args: unknown[] = [];
   if (q.ids?.length) { args.push(q.ids); where.push(`p.id = any($${args.length}::int[])`); }
   // The item picker searches item names only, not codes (Gene, 27 Oct)
-  if (q.q) { args.push(`%${q.q}%`); where.push(`p.description ilike $${args.length}`); }
+  const m = wordsMatch(["p.description"], q.q, args); if (m) where.push(m);
   if (q.type) { args.push(q.type); where.push(`p.type = $${args.length}`); }
   // GRIP&LIGHTING (3) jobs take items from both departments, as on the artifact (it hid the filter for them)
   if (q.dept && q.dept !== 3) { args.push(q.dept); where.push(`(p.dept = $${args.length} or p.dept = 3)`); }
@@ -20,7 +21,8 @@ export async function searchProducts(c: PoolClient, q: { q?: string; type?: numb
 
 /** Crew and their position rates for the job's crew picker. Never returns what we pay crew (crew_rate_costs). */
 export async function searchCrew(c: PoolClient, q: string, dept?: number, limit = 40) {
-  const args: unknown[] = [`%${q}%`]; let deptSql = "";
+  const args: unknown[] = []; let deptSql = "";
+  const m = wordsMatch(["cr.first_name", "cr.last_name", "cr.nick", "cr.code", "p.name", "p.code"], q, args);
   if (dept && dept !== 3) { args.push(dept); deptSql = `and (r.dept is null or r.dept = $${args.length})`; }
   args.push(Math.max(1, Math.min(100, limit)));
   const r = await c.query(`select cr.id as "crewId", trim(concat_ws(' ', cr.first_name, cr.last_name)) as name, cr.nick, cr.code as "crewCode",
@@ -28,7 +30,7 @@ export async function searchCrew(c: PoolClient, q: string, dept?: number, limit 
       p.code as "posCode", p.name as "posName"
     from crew cr join crew_rates r on r.crew_id = cr.id left join positions p on p.id = r.position_id
     where cr.enabled and r.enabled ${deptSql}
-      and (cr.first_name ilike $1 or cr.last_name ilike $1 or cr.nick ilike $1 or cr.code ilike $1 or p.name ilike $1 or p.code ilike $1)
+      ${m ? `and ${m}` : ""}
     order by cr.first_name, p.sort nulls last, r.rate_no limit $${args.length}`, args);
   return r.rows;
 }
