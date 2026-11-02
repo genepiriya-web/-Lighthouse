@@ -45,7 +45,7 @@ test("sale → store → CEO → store: special price blocks shipping until conf
   await noSidewaysScroll(page, "new job (customer dropdown open)");
   await page.getByRole("option", { name: /Synthetic Films C10/ }).click();
   await page.locator("label", { hasText: "Job title" }).locator("input").fill("E2E phone job");
-  // fixed dates clear of the fixture's jobs (6900001 holds M18s on 1–2 Nov 2026), so the stock check never depends on today
+  // fixed dates clear of the fixture's jobs (6900001 holds M18s 14–15 days from today, see e2e/db.js), so the stock check never depends on today
   await page.locator("label", { hasText: "Ship date" }).locator("input").fill("2030-03-04");
   await page.locator("label", { hasText: "Return date" }).locator("input").fill("2030-03-05");
   await noSidewaysScroll(page, "new job");

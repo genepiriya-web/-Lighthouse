@@ -13,6 +13,10 @@ async function setup(){
   await a.query(`drop database if exists ${NAME} with (force)`); await a.query(`create database ${NAME}`); await a.end();
   await migrate(url(),{log:()=>{}});
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),"lhd-e2e-")); writeFixture(dir);
+  // 6900001 (3 M18s, over stock) moved to 2 weeks from today: the Cockpit's "Overbooked" looks from today to 90 days on,
+  // so the fixture's fixed 1–2 Nov 2026 dates stopped showing it once they passed.
+  const day=n=>new Date(Date.now()+n*864e5).toISOString().slice(0,10);
+  const f=path.join(dir,"orders/6900001.json"); fs.writeFileSync(f,JSON.stringify({...JSON.parse(fs.readFileSync(f,"utf8")),ship:day(14),ret:day(15)}));
   const c=new Client({connectionString:url()}); await c.connect(); await importExport(c,dir);
   for(const s of STAFF) await c.query("insert into staff(user_id,display_name,role) values ($1,$2,$3)",s);
   await c.end(); fs.rmSync(dir,{recursive:true,force:true});
