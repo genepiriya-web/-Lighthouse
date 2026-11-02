@@ -9,6 +9,9 @@
 //   crew line: k "C<id>", "<position> · <name>" as the description, OT hours and rate, the old line total as legacyAmount
 //   out/in: the old system's lists don't carry counts; Shipped means all out, Returned/Draft INV all back (as on 23 Oct)
 // Jobs that were open last time and have left the open list get their status from getByOrderId ("detail").
+// adjust (docs/PLAN.md L8, as the 23 Oct import): when v2's sub total differs from the old one by at most
+// max(฿1,000, 2%), the difference becomes the job's adjust and is listed in meta/sync.json for review; a bigger gap is
+// left as it is, so the Cockpit shows the job's totals disagree.
 const fs = require("fs"), path = require("path");
 const L = require("../../src/logic.js");
 
@@ -62,15 +65,25 @@ function linesOf(order, items, crew) {
   return out;
 }
 
+const ADJ_MIN = 1000, ADJ_PCT = 0.02;
+/** The adjust that makes v2's sub total equal the old system's, or null when the gap is too big to hide. */
+function adjustOf(order, lines) {
+  const T = L.orderTotals(lines, { extraDisc: order.extraDisc, insurance: order.insurance, adjust: 0, tax: order.tax });
+  const gap = L.r2(order.legacyTotals.sub - (T.sub - T.extra));
+  return Math.abs(gap) <= Math.max(ADJ_MIN, ADJ_PCT * Math.abs(order.legacyTotals.sub)) ? gap : null;
+}
+
 function convert(pull, dir) {
   const od = path.join(dir, "orders"), ld = path.join(dir, "lines"); fs.mkdirSync(od, { recursive: true }); fs.mkdirSync(ld, { recursive: true });
   const read = f => (fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : null);
-  const stats = { open: 0, newJobs: 0, changed: 0, closed: 0, lines: 0 };
+  const stats = { open: 0, newJobs: 0, changed: 0, closed: 0, lines: 0, adjusted: [], mismatched: [] };
   for (const o of pull.orders) {
     const order = orderOf(o, read(path.join(od, `${noOf(o)}.json`)));
     const lines = linesOf(order, pull.items[o.id] ?? [], pull.crew[o.id] ?? []);
     if (!fs.existsSync(path.join(od, `${order.no}.json`))) stats.newJobs++; else stats.changed++;
     order.usage = L.usageOf(lines);
+    const adj = adjustOf(order, lines);
+    if (adj == null) stats.mismatched.push(order.no); else { order.adjust = adj; if (Math.abs(adj) >= 1) stats.adjusted.push([order.no, adj]); }
     fs.writeFileSync(path.join(od, `${order.no}.json`), JSON.stringify(order));
     fs.writeFileSync(path.join(ld, `${order.no}.json`), JSON.stringify({ items: lines, updatedAt: order.updatedAt }));
     stats.open++; stats.lines += lines.length;
@@ -83,7 +96,8 @@ function convert(pull, dir) {
     fs.writeFileSync(f, JSON.stringify({ ...prev, status: st, updatedAt: d.updatedDate ?? prev.updatedAt })); stats.closed++;
   }
   fs.mkdirSync(path.join(dir, "meta"), { recursive: true });
-  fs.writeFileSync(path.join(dir, "meta/sync.json"), JSON.stringify({ at: pull.at, jobs: stats.open, note: `Read-only sync (scripts/sync), run ${pull.run}: ${stats.newJobs} new, ${stats.changed} refreshed, ${stats.closed} re-checked after leaving the open list`, source: "admin.lighthouse.co.th" }));
+  fs.writeFileSync(path.join(dir, "meta/sync.json"), JSON.stringify({ at: pull.at, jobs: stats.open, note: `Read-only sync (scripts/sync), run ${pull.run}: ${stats.newJobs} new, ${stats.changed} refreshed, ${stats.closed} re-checked after leaving the open list`, source: "admin.lighthouse.co.th",
+    adjusted: stats.adjusted, mismatched: stats.mismatched }));
   return stats;
 }
 
@@ -92,4 +106,4 @@ if (require.main === module) {
   if (!file) { console.error("usage: node scripts/sync/convert.js <pull.json> [exportDir]"); process.exit(1); }
   console.log(JSON.stringify(convert(JSON.parse(fs.readFileSync(file, "utf8")), dir)));
 }
-module.exports = { convert, orderOf, linesOf, statusOf, noOf };
+module.exports = { convert, orderOf, linesOf, statusOf, noOf, adjustOf };

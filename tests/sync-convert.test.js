@@ -3,7 +3,7 @@
 // Synthetic data only.
 const test=require("node:test"); const assert=require("node:assert/strict");
 const fs=require("fs"),os=require("os"),path=require("path");
-const {convert,orderOf,linesOf,statusOf,noOf}=require("../scripts/sync/convert.js");
+const {convert,orderOf,linesOf,statusOf,noOf,adjustOf}=require("../scripts/sync/convert.js");
 const order={id:90001,orderId:"6909901",status:"Shipped",customerId:10,customerName:"Synthetic Films",jobTitle:"TVC T",jobType:"TVC",departmentId:1,billingAddress:"1 Test Rd",
   dop:"D",gaffer:null,remark:"note",salePersonName:"Test",type:"Daily",dpw:0,tax:"Vat",shipDate:"2026-10-27T00:00:00.000+0000",returnDate:"2026-10-28T00:00:00.000+0000",
   usageStart:"2026-10-27T00:00:00.000+0000",usageEnd:"2026-10-28T00:00:00.000+0000",footerId:9,remarkId:11,discountPercent:0,insuranceFree:0,listPrice:10000,discount:9000,
@@ -36,9 +36,18 @@ test("convert writes orders, lines and meta; closed jobs keep their lines and ta
   fs.mkdirSync(path.join(dir,"orders")); fs.mkdirSync(path.join(dir,"lines"));
   fs.writeFileSync(path.join(dir,"orders/6909902.json"),JSON.stringify({id:"6909902",no:"6909902",legacyId:90002,status:"Order"}));
   const s=convert({run:"20261028T1100",at:"2026-10-28T04:00:00Z",orders:[order],items:{90001:items},crew:{90001:crew},detail:{90002:{orderId:"6909902",status:"Draft INV",updatedDate:"2026-10-27T00:00:00Z"}}},dir);
-  assert.deepEqual(s,{open:1,newJobs:1,changed:0,closed:1,lines:4});
+  assert.deepEqual(s,{open:1,newJobs:1,changed:0,closed:1,lines:4,adjusted:[],mismatched:["6909901"]},"synthetic old totals far from the lines: left unadjusted");
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir,"orders/6909902.json"))).status,"Draft INV");
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir,"lines/6909901.json"))).items.length,4);
   assert.match(JSON.parse(fs.readFileSync(path.join(dir,"meta/sync.json"))).note,/1 new, 0 refreshed, 1 re-checked/);
   fs.rmSync(dir,{recursive:true,force:true});
+});
+
+test("adjust (PLAN L8): a gap up to max(฿1,000, 2%) becomes the adjust; a bigger one stays visible",()=>{
+  const lines=[{k:"a",t:1,list:1000,qty:1,days:1,disc:0}]; // v2 sub 1,000
+  const o=sub=>({extraDisc:0,insurance:0,tax:"Vat",legacyTotals:{sub}});
+  assert.equal(adjustOf(o(1080),lines),80); assert.equal(adjustOf(o(999.99),lines),-0.01);
+  assert.equal(adjustOf(o(2000),lines),1000); assert.equal(adjustOf(o(2000.01),lines),null);
+  const big=[{k:"a",t:1,list:100000,qty:1,days:1,disc:0}];
+  assert.equal(adjustOf(o(102000),big),2000,"2% of 102,000 is over ฿1,000"); assert.equal(adjustOf(o(105000),big),null);
 });

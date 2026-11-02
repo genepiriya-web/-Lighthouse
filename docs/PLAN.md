@@ -364,6 +364,10 @@ Rough total: 6–9 weeks of one developer's time, before the barcode work (flaw 
       - Do tax invoices and invoices come out of Express today?
       - What does Accounting key into Express for each rental job?
     - The web search found no official Express API documentation. Unconfirmed.
+43. **Two old-system jobs whose totals v2 can't match (Q43), 2 Nov 2026 bug sweep.** After the 28 Oct sync, 240 of 242 old jobs match the old system's totals (one, 6902069, through an ฿80 auto-adjust, rule L8). Two don't, and were left visible (Cockpit "totals disagree") rather than hidden with an adjust:
+    - 6902262 (Returned): v2 sub ฿24,000, old ฿17,580. The gap is exactly list ฿16,050 at the job's 60%: Aputure xt26 (฿15,000) + Walkie Talkie ×3 (฿1,050). Possibly lines added after the total was saved, or lines the old system leaves out (e.g. store-added). Unconfirmed.
+    - 6902271 (Quote): v2 sub ฿76,060, old ฿71,060; list differs by exactly ฿5,000 too. No single line explains it. Unconfirmed.
+    - Next: read those jobs' per-line totals in the old system (read only; needs a signed-in browser). Then: which figure is right, and should the importer copy the old total as an adjust?
 42. **Daily job board (Q42), Gene, 27 Oct 2026.** Built as above from the Excel (11 monthly sheets, ~1,000 job rows, LIGHTING only, 13 columns). Open:
     - ละคร vs โฆษณา is read from the job type (TVD = ละคร, everything else = โฆษณา). Right?
     - Should GRIP have its own board sections? (The Excel is LIGHTING only; v2 groups by the job's department.)
