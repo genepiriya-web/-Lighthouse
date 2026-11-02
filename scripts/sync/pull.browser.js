@@ -28,7 +28,7 @@
     "footerId", "remarkId", "discountPercent", "insuranceFree", "listPrice", "discount", "subTotal", "vat", "total", "revision", "createdDate", "createdBy", "updatedDate"];
   const pickO = o => Object.fromEntries(ORDER_FIELDS.filter(k => k in o).map(k => [k, o[k]]));
   const pickI = (x, t) => ({ id: x.id, __type: t, productId: x.productId, description: x.description, listPrice: x.listPrice, qty: x.qty, day: x.day, discount: x.discount,
-    freeOfChange: x.freeOfChange, standBy: x.standBy, usageDateStart: x.usageDateStart, usageDateEnd: x.usageDateEnd, remark: x.remark,
+    freeOfChange: x.freeOfChange, standBy: x.standBy, usageDateStart: x.usageDateStart, usageDateEnd: x.usageDateEnd, remark: x.remark, storeAdd: x.storeAdd,
     productWrapper: { productCode: x.productWrapper && x.productWrapper.productCode, description: x.productWrapper && x.productWrapper.description,
       orderProductChildWrappers: ((x.productWrapper && x.productWrapper.orderProductChildWrappers) || []).map(c => ({ productId: c.productId, productCode: c.productCode,
         childDescription: c.childDescription, listPrice: c.listPrice, quantity: c.quantity, discount: c.discount, day: c.day })) } });

@@ -157,11 +157,15 @@ test("real export: imports twice with identical rows, and every job still matche
   assert.deepEqual(n2,n1); assert.deepEqual(f2,f1);
   assert.ok(r1.counts.orders>=200&&r1.counts.products>=3000&&r1.counts.customers>=1000,JSON.stringify(r1.counts));
   const orders=(await c.query("select id,no,extra_disc,insurance,adjust,tax,legacy_totals from orders where owner='legacy' and legacy_totals is not null and id not like '69000%'")).rows;
-  const lines=(await c.query(`select order_id,t,list::float8,qty::float8,days::float8,disc::float8,foc,sb,ot::float8,ot_rate::float8 as "otRate" from order_lines order by order_id, sort`)).rows;
+  const lines=(await c.query(`select order_id,t,list::float8,qty::float8,days::float8,disc::float8,foc,sb,ot::float8,ot_rate::float8 as "otRate",remark from order_lines order by order_id, sort`)).rows;
   const by={}; for(const l of lines) (by[l.order_id]=by[l.order_id]||[]).push(l);
+  // docs/PLAN.md Q43: the old system doesn't redo a job's totals when Store adds lines, so a job with "Store Add" lines may
+  // be higher in v2 than its stale old total (the lines are right). Any other mismatch fails.
+  const storeGap=new Set();
   const bad=orders.filter(o=>{ const T=L.orderTotals(by[o.id]||[],{extraDisc:+o.extra_disc,insurance:+o.insurance,adjust:+o.adjust,tax:o.tax});
-    return Math.abs(L.r2(T.sub-T.extra+T.adj)-o.legacy_totals.sub)>0.05||Math.abs(T.total-o.legacy_totals.total)>0.05; }).map(o=>o.no);
-  // docs/PLAN.md Q43: two jobs whose old totals no line set explains, left visible for Gene; any other mismatch fails
-  const KNOWN=new Set(["6902262","6902271"]);
-  assert.ok(orders.length>=200); assert.deepEqual(bad.filter(no=>!KNOWN.has(no)),[],`${orders.length-bad.length}/${orders.length} match from the database`);
+    const sub=L.r2(T.sub-T.extra+T.adj);
+    if(sub>o.legacy_totals.sub+0.05&&(by[o.id]||[]).some(l=>/^\s*store add\s*$/i.test(l.remark||""))){ storeGap.add(o.no); return false; }
+    return Math.abs(sub-o.legacy_totals.sub)>0.05||Math.abs(T.total-o.legacy_totals.total)>0.05; }).map(o=>o.no);
+  assert.ok(orders.length>=200); assert.ok(storeGap.size<=10,`${storeGap.size} store-add gaps: more than expected`);
+  assert.deepEqual(bad,[],`${orders.length-bad.length-storeGap.size}/${orders.length} match from the database (+${storeGap.size} store-add gaps)`);
 });

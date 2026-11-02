@@ -11,7 +11,10 @@
 // Jobs that were open last time and have left the open list get their status from getByOrderId ("detail").
 // adjust (docs/PLAN.md L8, as the 23 Oct import): when v2's sub total differs from the old one by at most
 // max(฿1,000, 2%), the difference becomes the job's adjust and is listed in meta/sync.json for review; a bigger gap is
-// left as it is, so the Cockpit shows the job's totals disagree.
+// left as it is, so the Cockpit shows the job's totals disagree. Never on a job with store-added lines whose v2 total is
+// higher: the old system doesn't redo a job's totals when Store adds lines, until someone saves the job again (2 Nov 2026
+// sync: 6902320, 6902318, 6902312, 6902281 each missed exactly their newest "Store Add" lines), so there the lines are
+// right and the old total is stale (PLAN Q43). Those are listed as storeAddGap.
 const fs = require("fs"), path = require("path");
 const L = require("../../src/logic.js");
 
@@ -46,7 +49,7 @@ function linesOf(order, items, crew) {
     const w = x.productWrapper ?? {}, k = `L${x.id}`, qty = n(x.qty);
     out.push({ k, t: x.__type, pid: x.productId ?? null, code: w.productCode ?? "", desc: x.description ?? w.description ?? "", list: n(x.listPrice), qty, days: n(x.day),
       disc: n(x.discount), foc: !!x.freeOfChange, sb: !!x.standBy, parent: null, start: day(x.usageDateStart), end: day(x.usageDateEnd), remark: x.remark ?? "",
-      ...counts(qty), dmg: 0, lost: 0 });
+      ...counts(qty), dmg: 0, lost: 0, ...(x.storeAdd === true && { storeAdd: true }) });
     (w.orderProductChildWrappers ?? []).forEach((c, i) => {
       const cq = n(c.quantity);
       out.push({ k: `${k}c${i}`, t: x.__type, pid: c.productId ?? null, code: c.productCode ?? "", desc: c.childDescription ?? "", list: n(c.listPrice), qty: cq,
@@ -67,23 +70,26 @@ function linesOf(order, items, crew) {
 
 const ADJ_MIN = 1000, ADJ_PCT = 0.02;
 /** The adjust that makes v2's sub total equal the old system's, or null when the gap is too big to hide. */
+const isStoreAdd = l => l.storeAdd === true || /^\s*store add\s*$/i.test(l.remark ?? "");
 function adjustOf(order, lines) {
   const T = L.orderTotals(lines, { extraDisc: order.extraDisc, insurance: order.insurance, adjust: 0, tax: order.tax });
   const gap = L.r2(order.legacyTotals.sub - (T.sub - T.extra));
+  if (gap <= -0.05 && lines.some(isStoreAdd)) return "storeAdd";
   return Math.abs(gap) <= Math.max(ADJ_MIN, ADJ_PCT * Math.abs(order.legacyTotals.sub)) ? gap : null;
 }
 
 function convert(pull, dir) {
   const od = path.join(dir, "orders"), ld = path.join(dir, "lines"); fs.mkdirSync(od, { recursive: true }); fs.mkdirSync(ld, { recursive: true });
   const read = f => (fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : null);
-  const stats = { open: 0, newJobs: 0, changed: 0, closed: 0, lines: 0, adjusted: [], mismatched: [] };
+  const stats = { open: 0, newJobs: 0, changed: 0, closed: 0, lines: 0, adjusted: [], storeAddGap: [], mismatched: [] };
   for (const o of pull.orders) {
     const order = orderOf(o, read(path.join(od, `${noOf(o)}.json`)));
     const lines = linesOf(order, pull.items[o.id] ?? [], pull.crew[o.id] ?? []);
     if (!fs.existsSync(path.join(od, `${order.no}.json`))) stats.newJobs++; else stats.changed++;
     order.usage = L.usageOf(lines);
     const adj = adjustOf(order, lines);
-    if (adj == null) stats.mismatched.push(order.no); else { order.adjust = adj; if (Math.abs(adj) >= 1) stats.adjusted.push([order.no, adj]); }
+    if (adj == null) stats.mismatched.push(order.no); else if (adj === "storeAdd") stats.storeAddGap.push(order.no);
+    else { order.adjust = adj; if (Math.abs(adj) >= 1) stats.adjusted.push([order.no, adj]); }
     fs.writeFileSync(path.join(od, `${order.no}.json`), JSON.stringify(order));
     fs.writeFileSync(path.join(ld, `${order.no}.json`), JSON.stringify({ items: lines, updatedAt: order.updatedAt }));
     stats.open++; stats.lines += lines.length;
@@ -97,7 +103,7 @@ function convert(pull, dir) {
   }
   fs.mkdirSync(path.join(dir, "meta"), { recursive: true });
   fs.writeFileSync(path.join(dir, "meta/sync.json"), JSON.stringify({ at: pull.at, jobs: stats.open, note: `Read-only sync (scripts/sync), run ${pull.run}: ${stats.newJobs} new, ${stats.changed} refreshed, ${stats.closed} re-checked after leaving the open list`, source: "admin.lighthouse.co.th",
-    adjusted: stats.adjusted, mismatched: stats.mismatched }));
+    adjusted: stats.adjusted, storeAddGap: stats.storeAddGap, mismatched: stats.mismatched }));
   return stats;
 }
 

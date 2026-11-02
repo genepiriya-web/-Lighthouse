@@ -36,7 +36,7 @@ test("convert writes orders, lines and meta; closed jobs keep their lines and ta
   fs.mkdirSync(path.join(dir,"orders")); fs.mkdirSync(path.join(dir,"lines"));
   fs.writeFileSync(path.join(dir,"orders/6909902.json"),JSON.stringify({id:"6909902",no:"6909902",legacyId:90002,status:"Order"}));
   const s=convert({run:"20261028T1100",at:"2026-10-28T04:00:00Z",orders:[order],items:{90001:items},crew:{90001:crew},detail:{90002:{orderId:"6909902",status:"Draft INV",updatedDate:"2026-10-27T00:00:00Z"}}},dir);
-  assert.deepEqual(s,{open:1,newJobs:1,changed:0,closed:1,lines:4,adjusted:[],mismatched:["6909901"]},"synthetic old totals far from the lines: left unadjusted");
+  assert.deepEqual(s,{open:1,newJobs:1,changed:0,closed:1,lines:4,adjusted:[],storeAddGap:[],mismatched:["6909901"]},"synthetic old totals far from the lines: left unadjusted");
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir,"orders/6909902.json"))).status,"Draft INV");
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir,"lines/6909901.json"))).items.length,4);
   assert.match(JSON.parse(fs.readFileSync(path.join(dir,"meta/sync.json"))).note,/1 new, 0 refreshed, 1 re-checked/);
@@ -50,4 +50,13 @@ test("adjust (PLAN L8): a gap up to max(฿1,000, 2%) becomes the adjust; a bigg
   assert.equal(adjustOf(o(2000),lines),1000); assert.equal(adjustOf(o(2000.01),lines),null);
   const big=[{k:"a",t:1,list:100000,qty:1,days:1,disc:0}];
   assert.equal(adjustOf(o(102000),big),2000,"2% of 102,000 is over ฿1,000"); assert.equal(adjustOf(o(105000),big),null);
+});
+
+test("store-added lines missing from the old total (old system doesn't redo totals when Store adds): no adjust, listed apart",()=>{
+  const o=sub=>({extraDisc:0,insurance:0,tax:"Vat",legacyTotals:{sub}});
+  const lines=[{k:"a",t:1,list:1000,qty:1,days:1,disc:0},{k:"b",t:1,list:320,qty:1,days:1,disc:0,remark:"Store Add"}];
+  assert.equal(adjustOf(o(1000),lines),"storeAdd","v2 higher by the store line: lines are right");
+  assert.equal(adjustOf(o(1000),[lines[0],{...lines[1],remark:"",storeAdd:true}]),"storeAdd","the old system's flag counts too");
+  assert.equal(adjustOf(o(1400),lines),80,"old total higher: not a missing store line, normal rule");
+  assert.equal(adjustOf(o(1000),[lines[0],{...lines[1],remark:""}]),-320,"no store lines: normal rule");
 });
