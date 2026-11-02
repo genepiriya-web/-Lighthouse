@@ -1,5 +1,6 @@
 "use client";
-// Jobs list: open jobs by status (same counters as the artifact), search, and closed jobs on request.
+// Jobs list: open jobs by status (same counters as the artifact), search, and closed jobs on request. A search goes to the
+// server and covers every job (10,000+ since the history import of 3 Nov 2026), within the status picked, if any.
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Shell, api, useApp, stCls, money, fmtD } from "../ui/app";
@@ -11,15 +12,19 @@ interface Row { id: string; no: string; owner: string; status: string; customer_
 function Jobs() {
   const { t, me } = useApp();
   const [rows, setRows] = useState<Row[] | null>(null); const [filter, setFilter] = useState("open"); const [q, setQ] = useState("");
-  const [closed, setClosed] = useState<Row[] | null>(null);
+  const [closed, setClosed] = useState<Row[] | null>(null); const [found, setFound] = useState<Row[] | null>(null);
   useEffect(() => { api("GET", "/api/orders?status=open&limit=500").then(r => setRows(r.ok ? r.body.orders : [])); }, []);
   useEffect(() => { if (filter === "Draft INV" || filter === "Cancel") api("GET", `/api/orders?status=${encodeURIComponent(filter)}&limit=500`).then(r => setClosed(r.ok ? r.body.orders : [])); }, [filter]);
+  useEffect(() => {
+    if (!q.trim()) { setFound(null); return; }
+    let live = true; setFound(null);
+    const tm = setTimeout(() => api("GET", `/api/orders?q=${encodeURIComponent(q.trim())}&limit=300${filter === "open" ? "" : `&status=${encodeURIComponent(filter)}`}`)
+      .then(r => { if (live) setFound(r.ok ? r.body.orders : []); }), 250);
+    return () => { live = false; clearTimeout(tm); };
+  }, [q, filter]);
   const counts = useMemo(() => { const c: Record<string, number> = {}; for (const r of rows ?? []) c[r.status] = (c[r.status] || 0) + 1; return c; }, [rows]);
-  const src = filter === "Draft INV" || filter === "Cancel" ? closed : rows;
-  const list = (src ?? []).filter(r => filter === "open" || filter === "Draft INV" || filter === "Cancel" || r.status === filter)
-    // every typed word in any of the columns, any order (as the server search)
-    .filter(r => { const ws = q.toLowerCase().split(/\s+/).filter(Boolean); const hay = [r.no, r.job_title, r.customer_name, r.dop].map(v => String(v || "").toLowerCase());
-      return ws.every(w => hay.some(v => v.includes(w))); });
+  const src = q.trim() ? found : filter === "Draft INV" || filter === "Cancel" ? closed : rows;
+  const list = (src ?? []).filter(r => q.trim() || filter === "open" || filter === "Draft INV" || filter === "Cancel" || r.status === filter);
   const net = (r: Row) => r.totals ? money(r.totals.sub - r.totals.extra + (r.totals.adj || 0)) : "–";
   return (
     <>

@@ -13,8 +13,8 @@ const items=[{id:5001,__type:1,productId:1,listPrice:24000,qty:2,day:2,discount:
   {id:5002,__type:4,productId:3,listPrice:5000,qty:1,day:2,discount:null,freeOfChange:false,standBy:false,usageDateStart:null,usageDateEnd:null,remark:"",productWrapper:{productCode:"G45",orderProductChildWrappers:[]}}];
 const crew=[{id:7001,__type:5,crewId:500,crewCode:"G01",crewName:"Test Person",position:"HEAD ELECTRICIAN",price:3000,qty:1,day:"2.0",ot:500,otHour:2,total:6000,usageDateStart:null,usageDateEnd:null,remark:"14+2"}];
 
-test("status: named, or a leading Q marks a quote; numbers lose the Q",()=>{
-  assert.equal(statusOf({status:null,orderId:"Q6902172"}),"Quote"); assert.equal(noOf({orderId:"Q6902172"}),"6902172");
+test("status: named, or a leading Q marks a quote; the Q stays in the number (its own series: Q6700001 and 6700001 are different jobs)",()=>{
+  assert.equal(statusOf({status:null,orderId:"Q6902172"}),"Quote"); assert.equal(noOf({orderId:"Q6902172"}),"Q6902172");
   assert.equal(statusOf({status:"Draft INV",orderId:"6900001"}),"Draft INV"); assert.throws(()=>statusOf({status:"Weird",orderId:"1"}));
 });
 
@@ -59,4 +59,21 @@ test("store-added lines missing from the old total (old system doesn't redo tota
   assert.equal(adjustOf(o(1000),[lines[0],{...lines[1],remark:"",storeAdd:true}]),"storeAdd","the old system's flag counts too");
   assert.equal(adjustOf(o(1400),lines),80,"old total higher: not a missing store line, normal rule");
   assert.equal(adjustOf(o(1000),[lines[0],{...lines[1],remark:""}]),-320,"no store lines: normal rule");
+});
+
+test("history: a Q quote and a job with the same digits, and one number given to two old jobs, each keep their own file",()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),"lhd-sync-"));
+  const job={...order,id:91001,orderId:"6700001",status:"Draft INV"}, quote={...order,id:91002,orderId:"Q6700001",status:null};
+  const twinA={...order,id:91003,orderId:"6701680",status:"Draft INV"}, twinB={...order,id:91004,orderId:"6701680",status:"Cancel"};
+  const pull=os=>({run:"h",at:"2026-11-03T00:00:00Z",orders:os,items:{},crew:{},detail:{}});
+  const s=convert([pull([job,quote,twinA]),pull([twinB])],dir);
+  const files=fs.readdirSync(path.join(dir,"orders")).sort();
+  assert.deepEqual(files,["6700001.json","6701680-91004.json","6701680.json","Q6700001.json"]);
+  const read=f=>JSON.parse(fs.readFileSync(path.join(dir,"orders",f)));
+  assert.deepEqual([read("6701680.json").legacyId,read("6701680-91004.json").legacyId,read("6701680-91004.json").no],[91003,91004,"6701680-91004"]);
+  assert.equal(read("Q6700001.json").status,"Quote");
+  assert.equal(s.newJobs,4); assert.match(JSON.parse(fs.readFileSync(path.join(dir,"meta/sync.json"))).note,/run h, h: 4 new/);
+  convert([pull([twinB,twinA,job,quote])],dir); // again, in another order: same files, nothing new
+  assert.deepEqual(fs.readdirSync(path.join(dir,"orders")).sort(),files);
+  fs.rmSync(dir,{recursive:true,force:true});
 });

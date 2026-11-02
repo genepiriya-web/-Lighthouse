@@ -4,11 +4,15 @@
 //   node scripts/sync/convert.js <pull.json> [exportDir=data/export]
 // Then: npm run backup && npm run db:import
 // Mapping, checked against the 23 Oct copy of job 6902202 (old id 18471):
-//   order: orderId (a leading "Q" marks a Quote) · status (null on quotes) · header fields · old totals kept as legacyTotals
+//   order: orderId (a leading "Q" marks a Quote and stays in the number: see below) · status (null on quotes) · header fields · old totals kept as legacyTotals
 //   item line: k "L<id>", discount % as the old system stored it, package parts "<k>c<n>" from orderProductChildWrappers
 //   crew line: k "C<id>", "<position> · <name>" as the description, OT hours and rate, the old line total as legacyAmount
 //   out/in: the old system's lists don't carry counts; Shipped means all out, Returned/Draft INV all back (as on 23 Oct)
 // Jobs that were open last time and have left the open list get their status from getByOrderId ("detail").
+// Job numbers (history pull, 3 Nov 2026): the old system's Q-numbered quotes (status null) are their own series, and 136 of
+// the 137 reuse a real job's number (Q6700001 and 6700001 are different jobs), so the Q stays. One number was given to two
+// jobs at once (6701680, old ids 11473 and 11474, 0.3 s apart): a job whose number is already taken by another old id
+// gets "<number>-<old id>". Never two jobs in one file.
 // adjust (docs/PLAN.md L8, as the 23 Oct import): when v2's sub total differs from the old one by at most
 // max(฿1,000, 2%), the difference becomes the job's adjust and is listed in meta/sync.json for review; a bigger gap is
 // left as it is, so the Cockpit shows the job's totals disagree. Never on a job with store-added lines whose v2 total is
@@ -23,10 +27,17 @@ const n = v => (v == null || v === "" || isNaN(+v) ? 0 : +v);
 const STATUS = { Quote: "Quote", Order: "Order", Approve: "Approve", Shipped: "Shipped", Returned: "Returned", "Draft INV": "Draft INV", Cancel: "Cancel" };
 const statusOf = o => { const s = o.status == null ? (String(o.orderId ?? "").startsWith("Q") ? "Quote" : null) : STATUS[o.status] ?? STATUS[String(o.status).trim()] ?? null;
   if (!s) throw new Error(`unknown status ${JSON.stringify(o.status)} on ${o.orderId}`); return s; };
-const noOf = o => String(o.orderId ?? "").replace(/^Q/, "");
+const noOf = o => String(o.orderId ?? "");
+/** The v2 number for old job `o`: its own number, or "<number>-<old id>" when another old job already has that number. */
+function fileNo(o, od) {
+  const no = noOf(o), f = path.join(od, `${no}.json`);
+  if (!fs.existsSync(f)) return no;
+  const other = JSON.parse(fs.readFileSync(f, "utf8")).legacyId;
+  return other == null || String(other) === String(o.id) ? no : `${no}-${o.id}`;
+}
 
-function orderOf(o, prev) {
-  const status = statusOf(o), no = noOf(o);
+function orderOf(o, prev, no = noOf(o)) {
+  const status = statusOf(o);
   return {
     id: no, no, legacyId: o.id, status, customerId: o.customerId ?? null, customerName: o.customerName ?? "", jobTitle: o.jobTitle ?? "", jobType: o.jobType ?? "",
     dept: o.departmentId ?? null, billing: o.billingAddress ?? "", phone: o.phoneNo ?? "", fax: o.faxNo ?? "", contact: o.customerContact ?? "", contactPhone: o.customerContactPhoneNo ?? "",
@@ -78,12 +89,24 @@ function adjustOf(order, lines) {
   return Math.abs(gap) <= Math.max(ADJ_MIN, ADJ_PCT * Math.abs(order.legacyTotals.sub)) ? gap : null;
 }
 
-function convert(pull, dir) {
+const newStats = () => ({ open: 0, newJobs: 0, changed: 0, closed: 0, lines: 0, adjusted: [], storeAddGap: [], mismatched: [] });
+
+/** Converts one or more pulls (in order) into `dir`; meta/sync.json describes them together. */
+function convert(pulls, dir) {
+  const stats = newStats(), list = [].concat(pulls);
+  for (const pull of list) convertOne(pull, dir, stats);
+  const last = list[list.length - 1], runs = list.map(p => p.run).join(", ");
+  fs.mkdirSync(path.join(dir, "meta"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "meta/sync.json"), JSON.stringify({ at: last.at, jobs: stats.open, note: `Read-only sync (scripts/sync), run ${runs}: ${stats.newJobs} new, ${stats.changed} refreshed, ${stats.closed} re-checked after leaving the open list`, source: "admin.lighthouse.co.th",
+    adjusted: stats.adjusted, storeAddGap: stats.storeAddGap, mismatched: stats.mismatched }));
+  return stats;
+}
+
+function convertOne(pull, dir, stats) {
   const od = path.join(dir, "orders"), ld = path.join(dir, "lines"); fs.mkdirSync(od, { recursive: true }); fs.mkdirSync(ld, { recursive: true });
   const read = f => (fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : null);
-  const stats = { open: 0, newJobs: 0, changed: 0, closed: 0, lines: 0, adjusted: [], storeAddGap: [], mismatched: [] };
   for (const o of pull.orders) {
-    const order = orderOf(o, read(path.join(od, `${noOf(o)}.json`)));
+    const no = fileNo(o, od), order = orderOf(o, read(path.join(od, `${no}.json`)), no);
     const lines = linesOf(order, pull.items[o.id] ?? [], pull.crew[o.id] ?? []);
     if (!fs.existsSync(path.join(od, `${order.no}.json`))) stats.newJobs++; else stats.changed++;
     order.usage = L.usageOf(lines);
@@ -97,19 +120,16 @@ function convert(pull, dir) {
   // left the open list since last time: keep its lines, take its status and header from the old system now
   for (const [id, d] of Object.entries(pull.detail ?? {})) {
     if (!d || !d.orderId) continue;
-    const f = path.join(od, `${noOf(d)}.json`), prev = read(f); if (!prev) continue;
+    const f = path.join(od, `${fileNo({ ...d, id: d.id ?? +id }, od)}.json`), prev = read(f); if (!prev) continue;
     const st = d.status == null && String(d.orderId).startsWith("Q") ? "Quote" : STATUS[d.status] ?? prev.status;
     fs.writeFileSync(f, JSON.stringify({ ...prev, status: st, updatedAt: d.updatedDate ?? prev.updatedAt })); stats.closed++;
   }
-  fs.mkdirSync(path.join(dir, "meta"), { recursive: true });
-  fs.writeFileSync(path.join(dir, "meta/sync.json"), JSON.stringify({ at: pull.at, jobs: stats.open, note: `Read-only sync (scripts/sync), run ${pull.run}: ${stats.newJobs} new, ${stats.changed} refreshed, ${stats.closed} re-checked after leaving the open list`, source: "admin.lighthouse.co.th",
-    adjusted: stats.adjusted, storeAddGap: stats.storeAddGap, mismatched: stats.mismatched }));
-  return stats;
 }
 
 if (require.main === module) {
-  const [file, dir = path.join(__dirname, "../../data/export")] = process.argv.slice(2);
-  if (!file) { console.error("usage: node scripts/sync/convert.js <pull.json> [exportDir]"); process.exit(1); }
-  console.log(JSON.stringify(convert(JSON.parse(fs.readFileSync(file, "utf8")), dir)));
+  const args = process.argv.slice(2), files = args.filter(a => a.endsWith(".json")), dir = args.find(a => !a.endsWith(".json")) ?? path.join(__dirname, "../../data/export");
+  if (!files.length) { console.error("usage: node scripts/sync/convert.js <pull.json>... [exportDir]"); process.exit(1); }
+  const s = convert(files.map(f => JSON.parse(fs.readFileSync(f, "utf8"))), dir);
+  console.log(JSON.stringify({ ...s, adjusted: s.adjusted.length, storeAddGap: s.storeAddGap, mismatched: s.mismatched.length > 50 ? s.mismatched.length : s.mismatched }));
 }
-module.exports = { convert, orderOf, linesOf, statusOf, noOf, adjustOf };
+module.exports = { convert, orderOf, linesOf, statusOf, noOf, fileNo, adjustOf };

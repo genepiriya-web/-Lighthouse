@@ -24,6 +24,10 @@ test.before(async()=>{ if(skip) return;
   await migrate(urlFor(dbName),{log:()=>{}}); writeFixture(fixture);
   const c=new Client({connectionString:urlFor(dbName)}); await c.connect();
   await importExport(c,fixture);
+  // an old-system Q quote from 2024 (its own number series, history import of 3 Nov 2026)
+  await c.query("begin"); await c.query("set local app.importer = 'on'");
+  await c.query("insert into orders(id,no,owner,status,job_title,customer_name,ship,ret,created_at) values ('Q6700001','Q6700001','legacy','Quote','Old ADD quote','Synthetic Films','2024-02-06','2024-02-07','2024-02-06')");
+  await c.query("commit");
   await c.query("insert into staff(user_id,display_name,role,active) select * from unnest($1::uuid[],$2::text[],$3::text[],$4::bool[])",
     [[...ROLES.map(r=>uid[r]),INACTIVE],[...ROLES.map(r=>"Test "+r),"Gone"],[...ROLES,"sale"],[...ROLES.map(()=>true),false]]);
   await c.end();
@@ -51,7 +55,9 @@ test("auth: signed out → 401, not staff or inactive → 403, any staff can rea
   assert.equal((await api(NOT_STAFF,"GET","/api/orders")).body.error,"not_staff");
   assert.equal((await api(INACTIVE,"GET","/api/orders")).status,403);
   const r=ok(await api("store","GET","/api/orders?status=open"),"store list");
-  assert.deepEqual(r.orders.map(o=>o.no).sort(),["6900001","6900002"]);
+  assert.deepEqual(r.orders.map(o=>o.no).sort(),["6900001","6900002"],"a quote that ended over 30 days ago is not open");
+  assert.deepEqual(ok(await api("sale","GET","/api/orders?q=old%20add")).orders.map(o=>o.no),["Q6700001"],"search covers every job");
+  assert.deepEqual(ok(await api("sale","GET","/api/orders?status=Quote")).orders.map(o=>o.no),["6900002","Q6700001"],"by digits: 6900002 before Q6700001");
   assert.equal(ok(await api("crew","GET","/api/me")).role,"crew");
 });
 

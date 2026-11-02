@@ -22,7 +22,7 @@ function writeFixture(dir){
   const order=(id,status,extra)=>({id,no:id,legacyId:"L"+id,status,customerId:10,customerName:"Synthetic Films",jobTitle:"TVC "+id,ship:"2026-11-01",ret:"2026-11-02",
     rentType:"Daily",tax:"Vat",createdAt:"2026-10-01T09:00:00.000+0000",log:[{a:"created",at:"2026-10-01T09:00:00.000Z",by:"u_x",byName:"Tester"}],...extra});
   w("orders/6900001.json",order("6900001","Order",{extraDisc:5,legacyTotals:{sub:58330},usage:[[1,3]]}));
-  w("orders/6900002.json",order("6900002","Quote",{customerId:404}));
+  w("orders/6900002.json",order("6900002","Quote",{customerId:404,ship:"2099-01-01",ret:"2099-01-02"})); // far ahead: stays in the open list (old quotes drop out)
   w("lines/6900001.json",{items:[{k:"a",t:1,pid:1,code:"M18",list:24000,qty:3,days:2,disc:60,legacyAmount:57600},{k:"b",t:5,crewId:500,code:"G01",list:3000,qty:1,days:1,ot:2,otRate:400}]});
   w("lines/6900002.json",{items:[{k:"a",t:4,pid:3,list:9000,qty:1,days:1},{k:"c1",t:4,pid:2,list:150,qty:4,days:1,parent:"a"}]});
 }

@@ -128,15 +128,20 @@ async function resolveCustomer(c: PoolClient, fields: Record<string, unknown>) {
 }
 
 // ---------- reads ----------
+// "open" leaves out quotes whose dates ended more than QUOTE_DAYS ago, as the old-system sync does: the old system keeps
+// every quote (~800 since 2023 in the history import of 3 Nov 2026). Those are still found by search and the Quote filter.
+export const QUOTE_DAYS = 30;
 export async function listOrders(c: PoolClient, q: { status?: string; search?: string; limit?: number; before?: string }) {
   const where: string[] = []; const args: unknown[] = [];
-  if (q.status === "open") where.push(`status in ('Quote','Order','Approve','Shipped','Returned','Store Add')`);
+  if (q.status === "open") where.push(`(status in ('Order','Approve','Shipped','Returned','Store Add')
+    or (status = 'Quote' and coalesce(ret, ship, created_at::date) >= current_date - ${QUOTE_DAYS}))`);
   else if (q.status) { args.push(q.status); where.push(`status = $${args.length}`); }
   const m = wordsMatch(["no", "job_title", "customer_name", "dop"], q.search, args); if (m) where.push(m);
-  if (q.before) { args.push(q.before); where.push(`no < $${args.length}`); }
+  // newest number first; the old system's Q-numbered quotes (Q6700001) sit by their digits, among the jobs of their year
+  if (q.before) { args.push(q.before); where.push(`(ltrim(no, 'Q'), no) < (ltrim($${args.length}, 'Q'), $${args.length})`); }
   const limit = Math.max(1, Math.min(500, q.limit ?? 100)); args.push(limit);
   const r = await c.query(`select id, no, owner, status, customer_name, job_title, job_type, dept, ship, ret, dop, sale, totals, rev, addition_of
-    from orders ${where.length ? "where " + where.join(" and ") : ""} order by no desc limit $${args.length}`, args);
+    from orders ${where.length ? "where " + where.join(" and ") : ""} order by ltrim(no, 'Q') desc, no desc limit $${args.length}`, args);
   return { orders: r.rows, next: r.rowCount === limit ? r.rows[r.rows.length - 1].no : null };
 }
 

@@ -1,4 +1,5 @@
 // GET  /api/orders?status=open|Quote|...&q=&limit=&before=  — list, newest order number first, paged by `before`.
+//      `open` leaves out quotes that ended over 30 days ago; `q` alone searches every job.
 // POST /api/orders  — create a v2 job (sale, admin). Body: header fields. Returns { id, no, rev }.
 import { handle, readJson } from "../../../lib/server/http";
 import { requireStaff } from "../../../lib/server/auth";

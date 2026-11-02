@@ -37,6 +37,18 @@ Read only, through a person's own logged-in tab on admin.lighthouse.co.th (Claud
 Run of 28 Oct 2026, 11:00: 207 open jobs (33 new since 23 Oct), 23 re-checked after leaving the open list, 242 old-system
 jobs in v2 after import.
 
+## History pull (3 Nov 2026, `scripts/sync/history.browser.js`)
+Every job of every status, once (Gene: "Everything", 10,154 jobs). Same read endpoints as the sync, minus getByOrderId.
+1. In the logged-in tab, run the file, then `window.__lhdHist()`. It lists every job (`/order/search` by each status, plus
+   empty status for the Q-numbered quotes), then reads each job's items and crew, one job at a time (~2.5 s a job, ~7 h).
+   Each finished job is kept in the tab's IndexedDB (`lhd-history`), so after a reload or a new sign-in, run it again and it
+   carries on. Pause: `window.__lhdHistPause = true`.
+2. It downloads nothing by itself. `await window.__lhdHistSave(<part>)` downloads part 1–6 (2,000 jobs each, oldest first,
+   ~14 MB) as `lighthouse-history-<run>-<p>of6.json`; the person OKs each download. Move them to `data/sync/`.
+3. `npm run backup`, then `npm run sync:convert -- data/sync/lighthouse-history-*.json` (one run, all parts), then a normal
+   sync (open jobs may have moved on during the pull), then `npm run db:import`.
+4. `window.__lhdHistClear()` when done, so no copy stays in the browser.
+
 ## Unknown — ask before relying on it
 - Who owns the old system's code and database? Is a read-only API key or DB replica possible?
 - Whether the old system's terms or contract allow automated reading.
