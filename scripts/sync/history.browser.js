@@ -15,7 +15,10 @@
   let req; const mod = "__lhdHreq" + Date.now(); window.webpackJsonp.push([[Math.random()], { [mod](m, e, r) { req = r; } }, [[mod]]]);
   const http = req("hw50").b;
   const form = o => { const f = new FormData(); for (const k of Object.keys(o)) f.append(k, o[k]); return f; };
-  const read = async (ep, params) => { if (!ALLOW.has(ep)) throw new Error("not a read endpoint: " + ep); return (await http.post(ep, form(params))).data; };
+  // A read that fails (3 Nov 2026: "timeout of 0ms exceeded" during working hours) is tried again after 5, 20 and 60 s.
+  const read = async (ep, params) => { if (!ALLOW.has(ep)) throw new Error("not a read endpoint: " + ep);
+    for (const wait of [5, 20, 60, null]) { try { return (await http.post(ep, form(params))).data; }
+      catch (e) { if (wait == null) throw e; window.__lhdHistRetries = (window.__lhdHistRetries || 0) + 1; await new Promise(r => setTimeout(r, wait * 1000)); } } };
   const SEARCH = { orderId: "", jobTitle: "", jobType: "", departmentId: "", customerName: "", dop: "", salePerson: "", type: "" };
   // "" = the Q-numbered quotes the old system keeps with no status
   const STATUSES = ["Draft INV", "Cancel", "Quote", "", "Order", "Approve", "Shipped", "Returned"], PAGE = 50, PART = 2000;
