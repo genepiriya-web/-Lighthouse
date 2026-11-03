@@ -4,7 +4,8 @@
 //   * Every job of every status (Draft INV, Cancel, Quote, the Q-numbered quotes with no status, and the open ones).
 //   * Resumable: each finished job is kept in this tab's IndexedDB ("lhd-history"), so a reload or a sign-in that ran out
 //     only means running it again. One job at a time, so it loads the old system like one person clicking.
-//   * Downloads nothing by itself. __lhdHistSave(part) downloads one part (PART jobs) when the person has OK'd it; the
+//   * Downloads nothing by itself. __lhdHistAutoSave() (only when the person has OK'd all of them: Gene did, 3 Nov 2026)
+//     downloads each part as it completes; __lhdHistSave(part) downloads one part (PART jobs) when OK'd; the
 //     file has the same shape as a pull.browser.js file, so scripts/sync/convert.js reads it as it is.
 //   * __lhdHistClear() empties the IndexedDB copy once every part is saved and imported.
 // Start:    paste this file, then  window.__lhdHist()       Pause: window.__lhdHistPause = true   (run __lhdHist() to go on)
@@ -87,6 +88,20 @@
     const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" }));
     const a = document.createElement("a"); a.href = url; a.download = `lighthouse-history-${meta.run}-${p}of${parts}.json`; document.body.appendChild(a); a.click(); a.remove();
     return a.download;
+  };
+
+  /** Only after the person has OK'd every part's download: saves each part once, as soon as the pull has passed it. */
+  window.__lhdHistAutoSave = function () {
+    window.__lhdHistSaved = window.__lhdHistSaved || [];
+    clearInterval(window.__lhdHistAutoTimer);
+    window.__lhdHistAutoTimer = setInterval(async () => {
+      const p = window.__lhdHistProgress; if (!p || !p.total || !p.parts) return;
+      for (let k = 1; k <= p.parts; k++) {
+        if (window.__lhdHistSaved.includes(k) || p.done < Math.min(k * PART, p.total)) continue;
+        try { await window.__lhdHistSave(k); window.__lhdHistSaved.push(k); } catch (e) { window.__lhdHistError = String(e); }
+      }
+    }, 60000);
+    return "auto-save on";
   };
 
   window.__lhdHistClear = () => new Promise((ok, no) => { const r = indexedDB.deleteDatabase("lhd-history"); r.onsuccess = () => ok("cleared"); r.onerror = () => no(r.error); });
